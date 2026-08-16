@@ -7,6 +7,7 @@ import requests
 import re
 import unicodedata
 import hashlib
+import json
 
 st.set_page_config(
     page_title="Noticias de Argentina",
@@ -241,12 +242,12 @@ PROVINCIA_MEDIOS = {
     "Santa Cruz": [("La Opinión Austral", "laopinionaustral.com.ar"), ("Tiempo Sur", "tiemposur.com.ar")],
     "Santa Fe": [("El Litoral", "ellitoral.com"), ("La Capital", "lacapital.com.ar")],
     "Santiago del Estero": [("El Liberal", "elliberal.com.ar"), ("Nuevo Diario", "nuevodiarioweb.com.ar")],
-    "Tierra del Fuego, Antártida e Islas del Atlántico Sur": [("El Sureño", "elsureno.com.ar"), ("Provincia 23", "provincia23.com.ar")],
+    "Tierra del Fuego, Antártida e Islas del Atlántico Sur": [("El Sureño", "elsureno.com.ar"), ("Provincia 23", "provincia23.com.ar"), ("InfoFueguina", "infofueguina.com")],
     "Tucumán": [("La Gaceta", "lagaceta.com.ar"), ("Contexto Tucumán", "contextotucuman.com")],
 }
 
 # ========== MAPA POLÍTICO: GOBERNADORES ==========
-COLOR_PARTIDO = {"peronismo": "#C0392B", "lla": "#8E44AD", "pro": "#F1C40F", "otro": "#8C97A6"}
+COLOR_PARTIDO = {"peronismo": "#C0392B", "radical": "#6E1B14", "lla": "#8E44AD", "pro": "#F1C40F", "otro": "#8C97A6"}
 
 GOBERNADORES = {
     "Buenos Aires": {"nombre": "Axel Kicillof", "partido": "Unión por la Patria (peronismo)", "color": "peronismo",
@@ -254,17 +255,17 @@ GOBERNADORES = {
     "Ciudad Autónoma de Buenos Aires": {"nombre": "Jorge Macri", "partido": "PRO", "color": "pro",
                      "resultado": [("Macri (PRO)", 49.7), ("Santoro (UP)", 32.3)]},
     "Catamarca": {"nombre": "Raúl Jalil", "partido": "Unión por la Patria (PJ)", "color": "peronismo", "resultado": None},
-    "Chaco": {"nombre": "Leandro Zdero", "partido": "UCR (Juntos por el Cambio)", "color": "otro", "resultado": None},
+    "Chaco": {"nombre": "Leandro Zdero", "partido": "UCR (Juntos por el Cambio)", "color": "radical", "resultado": None},
     "Chubut": {"nombre": "Ignacio Torres", "partido": "PRO", "color": "pro", "resultado": None},
     "Córdoba": {"nombre": "Martín Llaryora", "partido": "PJ (Hacemos Unidos por Córdoba)", "color": "peronismo", "resultado": None},
-    "Corrientes": {"nombre": "Juan Pablo Valdés", "partido": "UCR (Vamos Corrientes)", "color": "otro",
+    "Corrientes": {"nombre": "Juan Pablo Valdés", "partido": "UCR (Vamos Corrientes)", "color": "radical",
                      "resultado": [("Valdés (Vamos Corrientes)", 51.9), ("Ascúa (Fuerza Patria)", 20.1), ("Colombi", 16.8)]},
     "Entre Ríos": {"nombre": "Rogelio Frigerio", "partido": "PRO", "color": "pro", "resultado": None},
     "Formosa": {"nombre": "Gildo Insfrán", "partido": "Unión por la Patria (PJ)", "color": "peronismo", "resultado": None},
-    "Jujuy": {"nombre": "Carlos Sadir", "partido": "UCR", "color": "otro", "resultado": None},
+    "Jujuy": {"nombre": "Carlos Sadir", "partido": "UCR", "color": "radical", "resultado": None},
     "La Pampa": {"nombre": "Sergio Ziliotto", "partido": "Unión por la Patria (PJ)", "color": "peronismo", "resultado": None},
     "La Rioja": {"nombre": "Ricardo Quintela", "partido": "Unión por la Patria (PJ)", "color": "peronismo", "resultado": None},
-    "Mendoza": {"nombre": "Alfredo Cornejo", "partido": "UCR", "color": "otro", "resultado": None},
+    "Mendoza": {"nombre": "Alfredo Cornejo", "partido": "UCR", "color": "radical", "resultado": None},
     "Misiones": {"nombre": "Hugo Passalacqua", "partido": "Frente Renovador de la Concordia (partido provincial)", "color": "otro", "resultado": None},
     "Neuquén": {"nombre": "Rolando Figueroa", "partido": "Comunidad (partido provincial)", "color": "otro", "resultado": None},
     "Río Negro": {"nombre": "Alberto Weretilneck", "partido": "Juntos Somos Río Negro (partido provincial)", "color": "otro", "resultado": None},
@@ -272,7 +273,7 @@ GOBERNADORES = {
     "San Juan": {"nombre": "Marcelo Orrego", "partido": "Producción y Trabajo (partido provincial)", "color": "otro", "resultado": None},
     "San Luis": {"nombre": "Claudio Poggi", "partido": "Ahora San Luis (partido provincial)", "color": "otro", "resultado": None},
     "Santa Cruz": {"nombre": "Claudio Vidal", "partido": "SER (partido provincial)", "color": "otro", "resultado": None},
-    "Santa Fe": {"nombre": "Maximiliano Pullaro", "partido": "UCR", "color": "otro", "resultado": None},
+    "Santa Fe": {"nombre": "Maximiliano Pullaro", "partido": "UCR", "color": "radical", "resultado": None},
     "Santiago del Estero": {"nombre": "Elías Suárez", "partido": "Frente Cívico por Santiago (partido provincial)", "color": "otro",
                      "resultado": [("Suárez (Frente Cívico)", 69.8), ("Despierta Santiago", 12.3), ("La Libertad Avanza", 12.0)]},
     "Tierra del Fuego, Antártida e Islas del Atlántico Sur": {"nombre": "Gustavo Melella", "partido": "Unión por la Patria (PJ)", "color": "peronismo", "resultado": None},
@@ -354,12 +355,116 @@ def obtener_noticias_provincia(provincia: str):
     noticias.sort(key=lambda x: x["fecha"], reverse=True)
     return noticias
 
+# ========== FUNCIONES DE COTIZACIONES (uso general) ==========
+@st.cache_data(ttl=300)
+def obtener_precio_yahoo(symbol: str):
+    try:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; NoticiasApp/1.0)"}
+        r = requests.get(url, headers=headers, params={"interval": "1d", "range": "5d"}, timeout=6)
+        data = r.json()
+        resultado = data["chart"]["result"][0]
+        meta = resultado["meta"]
+        precio = meta.get("regularMarketPrice")
+        previo = meta.get("previousClose") or meta.get("chartPreviousClose")
+        if precio is None or previo is None:
+            cierres = [c for c in resultado["indicators"]["quote"][0]["close"] if c is not None]
+            if len(cierres) >= 2:
+                precio, previo = cierres[-1], cierres[-2]
+        if precio is None or previo is None:
+            return None
+        cambio = ((precio / previo) - 1) * 100
+        return precio, cambio
+    except Exception:
+        return None
+
+@st.cache_data(ttl=300)
+def obtener_dolar(casa: str):
+    try:
+        r = requests.get(f"https://dolarapi.com/v1/dolares/{casa}", timeout=6)
+        d = r.json()
+        if d.get("venta") is None:
+            return None
+        return {"compra": d.get("compra"), "venta": d.get("venta")}
+    except Exception:
+        return None
+
+@st.cache_data(ttl=300)
+def obtener_riesgo_pais():
+    try:
+        r = requests.get("https://api.argentinadatos.com/v1/finanzas/indices/riesgo-pais/ultimo", timeout=6)
+        d = r.json()
+        return d.get("valor")
+    except Exception:
+        return None
+
+def _chip_indicador(nombre, valor_html, sub=None):
+    sub_html = f'<div style="font-size:10px;color:#888;margin-top:1px;">{sub}</div>' if sub else ""
+    return f"""
+    <div style="background:white;border:1px solid #e5e2db;border-radius:6px;padding:8px 14px;min-width:150px;flex:1;">
+        <div style="font-size:10px;color:#666;font-weight:700;letter-spacing:.4px;">{nombre}</div>
+        <div style="font-size:17px;font-weight:700;color:#111;">{valor_html}</div>
+        {sub_html}
+    </div>"""
+
+# ========== INDICADORES ECONÓMICOS (arriba del mapa) ==========
+st.subheader("Panorama económico")
+st.caption("Dólar, riesgo país, energía, minería y agro")
+
+_chips = []
+
+blue = obtener_dolar("blue")
+if blue:
+    sub = f'compra ${blue["compra"]:.0f}' if blue.get("compra") else None
+    _chips.append(_chip_indicador("DÓLAR BLUE", f'${blue["venta"]:.0f}', sub))
+else:
+    _chips.append(_chip_indicador("DÓLAR BLUE", "sin datos"))
+
+oficial = obtener_dolar("oficial")
+if oficial:
+    sub = f'compra ${oficial["compra"]:.0f}' if oficial.get("compra") else None
+    _chips.append(_chip_indicador("DÓLAR OFICIAL", f'${oficial["venta"]:.0f}', sub))
+else:
+    _chips.append(_chip_indicador("DÓLAR OFICIAL", "sin datos"))
+
+riesgo = obtener_riesgo_pais()
+if riesgo is not None:
+    _chips.append(_chip_indicador("RIESGO PAÍS", f'{riesgo:,.0f} pb'))
+else:
+    _chips.append(_chip_indicador("RIESGO PAÍS", "sin datos"))
+
+COMMODITIES = [
+    ("PETRÓLEO WTI", "CL=F", "u$s/barril"),
+    ("PETRÓLEO BRENT", "BZ=F", "u$s/barril"),
+    ("ORO", "GC=F", "u$s/oz"),
+    ("PLATA", "SI=F", "u$s/oz"),
+    ("LITIO (ETF LIT)", "LIT", "proxy, u$s"),
+    ("SOJA", "ZS=F", "u$s/bushel"),
+    ("MAÍZ", "ZC=F", "u$s/bushel"),
+    ("TRIGO", "ZW=F", "u$s/bushel"),
+]
+
+for nombre, symbol, unidad in COMMODITIES:
+    resultado = obtener_precio_yahoo(symbol)
+    if resultado:
+        precio, cambio = resultado
+        color = "#14804A" if cambio >= 0 else "#C0392B"
+        sub = f'<span style="color:{color};font-weight:700;">{cambio:+.2f}%</span> · {unidad}'
+        _chips.append(_chip_indicador(nombre, f'{precio:,.2f}', sub))
+    else:
+        _chips.append(_chip_indicador(nombre, "sin datos"))
+
+st.markdown(f'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;">{"".join(_chips)}</div>', unsafe_allow_html=True)
+st.caption("Fuentes: DolarAPI, ArgentinaDatos y Yahoo Finance. El litio no tiene un futuro cotizado de acceso público masivo, por eso se aproxima con el ETF LIT (Global X Lithium & Battery Tech).")
+
+st.markdown("---")
+
 # ========== MAPA + BOLSA ==========
 col_mapa, col_bolsa = st.columns([1.45, 1])
 
 with col_mapa:
     st.subheader("Provincias")
-    st.caption("Rojo = peronismo · Amarillo = PRO · Violeta = La Libertad Avanza · Gris = otros partidos")
+    st.caption("Rojo = peronismo · Rojo oscuro = radicalismo (UCR) · Amarillo = PRO · Violeta = La Libertad Avanza · Gris = otros partidos")
 
     @st.cache_data
     def cargar_provincias():
@@ -441,28 +546,6 @@ with col_bolsa:
     st.subheader("Mercados")
     st.caption("EE.UU. · Argentina")
 
-    @st.cache_data(ttl=300)
-    def obtener_precio(symbol: str):
-        try:
-            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
-            headers = {"User-Agent": "Mozilla/5.0 (compatible; NoticiasApp/1.0)"}
-            r = requests.get(url, headers=headers, params={"interval": "1d", "range": "5d"}, timeout=6)
-            data = r.json()
-            resultado = data["chart"]["result"][0]
-            meta = resultado["meta"]
-            precio = meta.get("regularMarketPrice")
-            previo = meta.get("previousClose") or meta.get("chartPreviousClose")
-            if precio is None or previo is None:
-                cierres = [c for c in resultado["indicators"]["quote"][0]["close"] if c is not None]
-                if len(cierres) >= 2:
-                    precio, previo = cierres[-1], cierres[-2]
-            if precio is None or previo is None:
-                return None
-            cambio = ((precio / previo) - 1) * 100
-            return precio, cambio
-        except Exception:
-            return None
-
     TICKERS = [
         ("S&P 500", "^GSPC"), ("Dow Jones", "^DJI"), ("Nasdaq", "^IXIC"),
         ("Merval", "^MERV"), ("YPF", "YPF"), ("Galicia", "GGAL"),
@@ -470,7 +553,7 @@ with col_bolsa:
 
     hubo_error = False
     for nombre, symbol in TICKERS:
-        resultado = obtener_precio(symbol)
+        resultado = obtener_precio_yahoo(symbol)
         if resultado:
             precio, cambio = resultado
             color = "#14804A" if cambio >= 0 else "#C0392B"
@@ -557,6 +640,73 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
+# ========== ÚLTIMAS LEYES APROBADAS ==========
+LEYES_APROBADAS = [
+    ("Ley de Presupuesto 2026", "2025-12-18"),
+    ("Ley de Inocencia Fiscal", "2025-12-10"),
+    ("Prórroga del Consenso Fiscal", "2025-11-27"),
+    ("Ley de Boleta Única Papel (reglamentación)", "2025-11-05"),
+    ("Modificación del Régimen de Alquileres", "2025-10-22"),
+    ("Ley de Emergencia en Discapacidad (financiamiento)", "2025-09-30"),
+    ("Actualización del Régimen de Zonas Frías", "2025-09-11"),
+    ("Ley de Financiamiento Universitario", "2025-08-27"),
+    ("Modificaciones al Código Aduanero", "2025-08-14"),
+    ("Ley de Restauración de la Sostenibilidad de la Deuda Pública (ampliación)", "2025-07-30"),
+]
+
+st.subheader("Últimas leyes aprobadas")
+st.caption("Las 10 sanciones más recientes del Congreso. Nómina de referencia, editable a medida que se sancionan nuevas leyes; para el detalle oficial consultá hcdn.gob.ar o senado.gob.ar.")
+filas_leyes = ""
+for i, (nombre_ley, fecha_ley) in enumerate(LEYES_APROBADAS[:10], start=1):
+    filas_leyes += f"""
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #eee;">
+        <span style="font-family:'Playfair Display',serif;font-weight:700;color:#B8860B;font-size:14px;min-width:20px;">{i:02d}</span>
+        <span style="font-size:13px;color:#111;flex:1;">{nombre_ley}</span>
+        <span style="font-size:11px;color:#888;">{fecha_ley}</span>
+    </div>"""
+st.markdown(f'<div style="background:white;border:1px solid #e5e2db;border-radius:6px;padding:8px 16px;margin-bottom:14px;">{filas_leyes}</div>', unsafe_allow_html=True)
+
+st.markdown("---")
+
+# ========== TERMÓMETRO POLÍTICO EN REDES / MEDIOS ==========
+POLITICOS_TERMOMETRO = [
+    "Javier Milei", "Cristina Kirchner", "Axel Kicillof", "Patricia Bullrich",
+    "Mauricio Macri", "Martín Llaryora", "Máximo Kirchner", "Diego Santilli",
+]
+
+@st.cache_data(ttl=1800)
+def obtener_menciones_politicos():
+    resultados = []
+    for nombre in POLITICOS_TERMOMETRO:
+        try:
+            consulta = nombre.replace(" ", "+")
+            url = f"https://news.google.com/rss/search?q=%22{consulta}%22+when:1d&hl=es-419&gl=AR&ceid=AR:es-419"
+            feed = feedparser.parse(url)
+            resultados.append((nombre, len(feed.entries)))
+        except Exception:
+            resultados.append((nombre, 0))
+    resultados.sort(key=lambda x: x[1], reverse=True)
+    return resultados
+
+st.subheader("Termómetro político")
+st.caption("Este entorno no tiene acceso a APIs de redes sociales (X, Instagram, TikTok), así que el ranking se arma contando menciones en titulares de noticias de las últimas 24 horas, como aproximación de quién está más presente en la conversación pública.")
+
+menciones = obtener_menciones_politicos()
+max_menciones = max([m for _, m in menciones] or [1]) or 1
+filas_term = ""
+for nombre, count in menciones:
+    pct = (count / max_menciones * 100) if max_menciones else 0
+    filas_term += f"""
+    <div style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#333;margin-bottom:3px;">
+            <span><b>{nombre}</b></span><span>{count} menciones</span>
+        </div>
+        <div style="background:#eee;border-radius:4px;height:10px;overflow:hidden;">
+            <div style="width:{pct:.1f}%;background:linear-gradient(90deg,#B8860B,#8B0000);height:100%;"></div>
+        </div>
+    </div>"""
+st.markdown(f'<div style="background:white;border:1px solid #e5e2db;border-radius:6px;padding:14px 16px;">{filas_term}</div>', unsafe_allow_html=True)
+
 st.markdown("---")
 
 # ========== NOTICIAS DE LA PROVINCIA SELECCIONADA ==========
@@ -566,7 +716,11 @@ if provincia_seleccionada and not st.session_state.get("ocultar_provincia", Fals
         col_titulo, col_cerrar = st.columns([5, 1])
         with col_titulo:
             st.subheader(f"Noticias de {provincia_seleccionada}")
-            nombres_fuentes = " y ".join([m[0] for m in medios_provincia])
+            nombres_lista = [m[0] for m in medios_provincia]
+            if len(nombres_lista) > 1:
+                nombres_fuentes = ", ".join(nombres_lista[:-1]) + " y " + nombres_lista[-1]
+            else:
+                nombres_fuentes = nombres_lista[0] if nombres_lista else ""
             st.caption(f"Fuentes: {nombres_fuentes}")
         with col_cerrar:
             if st.button("✕ Cerrar", use_container_width=True):
@@ -625,17 +779,45 @@ def obtener_noticia_infobae_rss():
         return None
     return None
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=180)
 def obtener_tapa_infobae():
-    """Intenta traer la noticia principal de la tapa (home) de Infobae en este momento."""
+    """Intenta traer la noticia principal (la número 1) de la tapa de Infobae en este momento."""
     try:
         headers = {"User-Agent": "Mozilla/5.0 (compatible; NoticiasApp/1.0)"}
         r = requests.get("https://www.infobae.com/", headers=headers, timeout=8)
         html = r.text
-        m = re.search(r'href="(https://www\.infobae\.com/[a-z0-9\-]+/\d{4}/\d{2}/\d{2}/[a-z0-9\-]+/)"', html)
-        if not m:
+        link = None
+
+        # Estrategia 1: bloques JSON-LD tipo ItemList, que reflejan el orden real de la tapa
+        for bloque in re.findall(r'<script type="application/ld\+json"[^>]*>(.*?)</script>', html, re.DOTALL):
+            try:
+                data = json.loads(bloque.strip())
+            except Exception:
+                continue
+            candidatos = data if isinstance(data, list) else [data]
+            for d in candidatos:
+                if isinstance(d, dict) and d.get("@type") == "ItemList":
+                    items = d.get("itemListElement", [])
+                    items_ordenados = sorted(items, key=lambda x: x.get("position", 999))
+                    for it in items_ordenados:
+                        url_it = it.get("url") or (it.get("item") or {}).get("url")
+                        if url_it and "infobae.com" in url_it and "/arc/outboundfeeds" not in url_it:
+                            link = url_it
+                            break
+                if link:
+                    break
+            if link:
+                break
+
+        # Estrategia 2 (respaldo): primer link de nota que aparece en el HTML de portada
+        if not link:
+            m = re.search(r'href="(https://www\.infobae\.com/[a-z0-9\-]+/\d{4}/\d{2}/\d{2}/[a-z0-9\-]+/)"', html)
+            if m:
+                link = m.group(1)
+
+        if not link:
             return None
-        link = m.group(1)
+
         r2 = requests.get(link, headers=headers, timeout=8)
         html2 = r2.text
         titulo_m = re.search(r'<meta property="og:title" content="([^"]+)"', html2)
@@ -858,6 +1040,32 @@ if noticias:
             st.rerun()
 else:
     st.info("No se encontraron noticias con esos filtros.")
+
+st.markdown("---")
+
+# ========== ZÓCALOS PUBLICITARIOS ==========
+st.caption("Espacios publicitarios")
+
+
+def _zocalo_publicidad(alto="90px"):
+    return f"""
+    <div style="background:repeating-linear-gradient(45deg,#f0ede6,#f0ede6 10px,#e8e4da 10px,#e8e4da 20px);
+                border:1.5px dashed #c9c2b3;border-radius:6px;height:{alto};
+                display:flex;align-items:center;justify-content:center;margin-bottom:12px;">
+        <span style="color:#9a9282;font-size:13px;font-weight:600;letter-spacing:.5px;">PUBLICITE AQUÍ</span>
+    </div>"""
+    # Reemplazar este bloque por el snippet de Google Ad Manager / AdSense correspondiente a cada zócalo.
+
+
+cols_ads_1 = st.columns(3)
+for c in cols_ads_1:
+    with c:
+        st.markdown(_zocalo_publicidad(), unsafe_allow_html=True)
+
+cols_ads_2 = st.columns(3)
+for c in cols_ads_2:
+    with c:
+        st.markdown(_zocalo_publicidad(), unsafe_allow_html=True)
 
 st.markdown(f"""
 <div style="text-align:center;padding:25px 0 10px;color:#888;font-size:12px;border-top:1px solid #ddd;margin-top:30px;">
