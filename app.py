@@ -130,8 +130,153 @@ map_data = st_folium(m, width=None, height=450, key="mapa")
 
 provincia_seleccionada = None
 if map_data and map_data.get("last_object_clicked_tooltip"):
-    provincia_seleccionada = map_data["last_object_clicked_tooltip"]
-    st.success(f"📍 Filtrando noticias de: *{provincia_seleccionada}*")
+    raw = map_data["last_object_clicked_tooltip"]
+    # Limpiamos el prefijo "Provincia: "
+    provincia_seleccionada = re.sub(r'(?i)^Provincia:\s*', '', str(raw)).strip()
+    st.success(f"📍 Filtrando noticias de: **{provincia_seleccionada}**")
+
+# ========== NOTICIA DEL DÍA (INFOBAE + TN) ==========
+st.markdown("---")
+st.subheader("🔥 Noticia del día")
+
+def extraer_imagen(entry) -> str | None:
+    if hasattr(entry, "media_content") and entry.media_content:
+        for m in entry.media_content:
+            url = m.get("url")
+            if url and (m.get("type", "").startswith("image") or url.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))):
+                return url
+        if entry.media_content[0].get("url"):
+            return entry.media_content[0]["url"]
+
+    if hasattr(entry, "media_thumbnail") and entry.media_thumbnail:
+        return entry.media_thumbnail[0].get("url")
+
+    if hasattr(entry, "enclosures") and entry.enclosures:
+        for enc in entry.enclosures:
+            url = enc.get("href") or enc.get("url")
+            if url and (enc.get("type", "").startswith("image") or url.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))):
+                return url
+
+    content = ""
+    if entry.get("content"):
+        content = entry.content[0].get("value", "")
+    elif entry.get("summary"):
+        content = entry.summary
+
+    if content:
+        match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', content, re.IGNORECASE)
+        if match:
+            return match.group(1)
+
+    return None
+
+@st.cache_data(ttl=300)
+def obtener_noticia_del_dia():
+    resultado = {"infobae": None, "tn": None}
+
+    # Infobae
+    try:
+        feed = feedparser.parse("https://www.infobae.com/arc/outboundfeeds/rss/")
+        if feed.entries:
+            entry = feed.entries[0]
+            resultado["infobae"] = {
+                "titulo": entry.title,
+                "link": entry.link,
+                "imagen": extraer_imagen(entry),
+                "medio": "Infobae"
+            }
+    except:
+        pass
+
+    # TN
+    try:
+        feed = feedparser.parse("https://tn.com.ar/arc/outboundfeeds/google-news-feed/?outputType=xml")
+        if feed.entries:
+            entry = feed.entries[0]
+            resultado["tn"] = {
+                "titulo": entry.title,
+                "link": entry.link,
+                "imagen": extraer_imagen(entry),
+                "medio": "TN"
+            }
+    except:
+        pass
+
+    return resultado
+
+noticias_dia = obtener_noticia_del_dia()
+
+col_infobae, col_tn = st.columns(2)
+
+with col_infobae:
+    if noticias_dia["infobae"]:
+        n = noticias_dia["infobae"]
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 12px;
+            padding: 20px;
+            height: 100%;
+            border-left: 6px solid #e63946;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        ">
+            <div style="color:#e63946; font-weight:700; font-size:14px; margin-bottom:8px;">
+                🔴 INFOBAE · NOTICIA DEL DÍA
+            </div>
+            {"<img src='" + n['imagen'] + "' style='width:100%; max-height:180px; object-fit:cover; border-radius:8px; margin-bottom:12px;' onerror=\"this.style.display='none'\">" if n.get("imagen") else ""}
+            <div style="font-size:22px; font-weight:700; line-height:1.3; color:white; margin-bottom:12px;">
+                {n['titulo']}
+            </div>
+            <a href="{n['link']}" target="_blank" style="
+                display:inline-block;
+                background:#e63946;
+                color:white;
+                padding:8px 16px;
+                border-radius:6px;
+                text-decoration:none;
+                font-weight:600;
+                font-size:14px;
+            ">Leer en Infobae →</a>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.info("No se pudo cargar la noticia de Infobae")
+
+with col_tn:
+    if noticias_dia["tn"]:
+        n = noticias_dia["tn"]
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg, #0f0f0f 0%, #1c1c1c 100%);
+            border-radius: 12px;
+            padding: 20px;
+            height: 100%;
+            border-left: 6px solid #00b4d8;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        ">
+            <div style="color:#00b4d8; font-weight:700; font-size:14px; margin-bottom:8px;">
+                🔵 TN · NOTICIA DEL DÍA
+            </div>
+            {"<img src='" + n['imagen'] + "' style='width:100%; max-height:180px; object-fit:cover; border-radius:8px; margin-bottom:12px;' onerror=\"this.style.display='none'\">" if n.get("imagen") else ""}
+            <div style="font-size:22px; font-weight:700; line-height:1.3; color:white; margin-bottom:12px;">
+                {n['titulo']}
+            </div>
+            <a href="{n['link']}" target="_blank" style="
+                display:inline-block;
+                background:#00b4d8;
+                color:white;
+                padding:8px 16px;
+                border-radius:6px;
+                text-decoration:none;
+                font-weight:600;
+                font-size:14px;
+            ">Leer en TN →</a>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.info("No se pudo cargar la noticia de TN")
+
+st.markdown("---")
 
 # ========== NOTICIAS ==========
 st.subheader("📰 Noticias")
@@ -174,37 +319,6 @@ feeds_extra = {
         "https://www.ole.com.ar/rss/ultimas-noticias/"
     ],
 }
-
-def extraer_imagen(entry) -> str | None:
-    if hasattr(entry, "media_content") and entry.media_content:
-        for m in entry.media_content:
-            url = m.get("url")
-            if url and (m.get("type", "").startswith("image") or url.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))):
-                return url
-        if entry.media_content[0].get("url"):
-            return entry.media_content[0]["url"]
-
-    if hasattr(entry, "media_thumbnail") and entry.media_thumbnail:
-        return entry.media_thumbnail[0].get("url")
-
-    if hasattr(entry, "enclosures") and entry.enclosures:
-        for enc in entry.enclosures:
-            url = enc.get("href") or enc.get("url")
-            if url and (enc.get("type", "").startswith("image") or url.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))):
-                return url
-
-    content = ""
-    if entry.get("content"):
-        content = entry.content[0].get("value", "")
-    elif entry.get("summary"):
-        content = entry.summary
-
-    if content:
-        match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', content, re.IGNORECASE)
-        if match:
-            return match.group(1)
-
-    return None
 
 @st.cache_data(ttl=300)
 def obtener_noticias(cats, desde, hasta, provincia=None):
@@ -300,8 +414,8 @@ with st.spinner("Cargando noticias..."):
 if noticias:
     noticias = sorted(noticias, key=lambda x: x["fecha"], reverse=True)
 
-    # 10 noticias por página
-    TAMANO_PAGINA = 10
+    # ===== CAMBIO: 5 noticias por página =====
+    TAMANO_PAGINA = 5
     total_paginas = (len(noticias) - 1) // TAMANO_PAGINA + 1
 
     # Aseguramos que la página no se pase del límite
@@ -314,7 +428,7 @@ if noticias:
     fin = inicio + TAMANO_PAGINA
     noticias_pagina = noticias[inicio:fin]
 
-    # Mostrar las 10 noticias de la página actual
+    # Mostrar las 5 noticias de la página actual
     for n in noticias_pagina:
         col_img, col_txt = st.columns([0.9, 5.1])
 
