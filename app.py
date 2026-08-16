@@ -34,7 +34,7 @@ def obtener_titulares_infobae():
 titulares_banner = obtener_titulares_infobae()
 texto_banner = "  •  ".join(titulares_banner)
 
-# ========== BANNER DESPLAZÁNDOSE CON TITULARES DE INFOBAE ==========
+# ========== BANNER DESPLAZÁNDOSE ==========
 st.markdown(f"""
 <style>
 .marquee {{
@@ -136,7 +136,6 @@ if map_data and map_data.get("last_object_clicked_tooltip"):
 # ========== NOTICIAS ==========
 st.subheader("📰 Noticias")
 
-# Feed principal de TN
 TN_FEED = "https://tn.com.ar/arc/outboundfeeds/google-news-feed/?outputType=xml"
 
 def detectar_categoria_tn(link: str) -> str:
@@ -177,7 +176,6 @@ feeds_extra = {
 }
 
 def extraer_imagen(entry) -> str | None:
-    # 1. media:content (TN)
     if hasattr(entry, "media_content") and entry.media_content:
         for m in entry.media_content:
             url = m.get("url")
@@ -186,18 +184,15 @@ def extraer_imagen(entry) -> str | None:
         if entry.media_content[0].get("url"):
             return entry.media_content[0]["url"]
 
-    # 2. media_thumbnail
     if hasattr(entry, "media_thumbnail") and entry.media_thumbnail:
         return entry.media_thumbnail[0].get("url")
 
-    # 3. enclosures
     if hasattr(entry, "enclosures") and entry.enclosures:
         for enc in entry.enclosures:
             url = enc.get("href") or enc.get("url")
             if url and (enc.get("type", "").startswith("image") or url.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))):
                 return url
 
-    # 4. buscar en content o summary
     content = ""
     if entry.get("content"):
         content = entry.content[0].get("value", "")
@@ -219,10 +214,10 @@ def obtener_noticias(cats, desde, hasta, provincia=None):
         "alerta", "grave", "tragedia", "muerte", "accidente mortal"
     ]
 
-    # ----- Feed principal de TN -----
+    # TN
     try:
         feed = feedparser.parse(TN_FEED)
-        for entry in feed.entries[:25]:
+        for entry in feed.entries[:30]:
             try:
                 f = datetime(*entry.published_parsed[:6]).date()
             except:
@@ -254,13 +249,13 @@ def obtener_noticias(cats, desde, hasta, provincia=None):
     except:
         pass
 
-    # ----- Feeds extra -----
+    # Feeds extra
     for cat in cats:
         if cat in feeds_extra:
             for url in feeds_extra[cat]:
                 try:
                     feed = feedparser.parse(url)
-                    for entry in feed.entries[:8]:
+                    for entry in feed.entries[:10]:
                         try:
                             f = datetime(*entry.published_parsed[:6]).date()
                         except:
@@ -290,6 +285,10 @@ def obtener_noticias(cats, desde, hasta, provincia=None):
 
     return lista
 
+# ========== PAGINACIÓN ==========
+if "pagina" not in st.session_state:
+    st.session_state.pagina = 0
+
 with st.spinner("Cargando noticias..."):
     noticias = obtener_noticias(
         categorias_activas,
@@ -300,9 +299,23 @@ with st.spinner("Cargando noticias..."):
 
 if noticias:
     noticias = sorted(noticias, key=lambda x: x["fecha"], reverse=True)
-    noticias = noticias[:22]   # máximo 22 para que no se trabe
 
-    for n in noticias:
+    # 10 noticias por página
+    TAMANO_PAGINA = 10
+    total_paginas = (len(noticias) - 1) // TAMANO_PAGINA + 1
+
+    # Aseguramos que la página no se pase del límite
+    if st.session_state.pagina >= total_paginas:
+        st.session_state.pagina = total_paginas - 1
+    if st.session_state.pagina < 0:
+        st.session_state.pagina = 0
+
+    inicio = st.session_state.pagina * TAMANO_PAGINA
+    fin = inicio + TAMANO_PAGINA
+    noticias_pagina = noticias[inicio:fin]
+
+    # Mostrar las 10 noticias de la página actual
+    for n in noticias_pagina:
         col_img, col_txt = st.columns([0.9, 5.1])
 
         with col_img:
@@ -358,6 +371,26 @@ if noticias:
                 )
 
         st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+
+    # ========== BOTONES DE PAGINACIÓN ==========
+    st.markdown("---")
+    col_ant, col_info, col_sig = st.columns([1, 2, 1])
+
+    with col_ant:
+        if st.button("⬅️ Anterior", use_container_width=True, disabled=(st.session_state.pagina == 0)):
+            st.session_state.pagina -= 1
+            st.rerun()
+
+    with col_info:
+        st.markdown(
+            f"<div style='text-align:center; padding-top:8px;'>Página <b>{st.session_state.pagina + 1}</b> de <b>{total_paginas}</b></div>",
+            unsafe_allow_html=True
+        )
+
+    with col_sig:
+        if st.button("Siguiente ➡️", use_container_width=True, disabled=(st.session_state.pagina >= total_paginas - 1)):
+            st.session_state.pagina += 1
+            st.rerun()
 
 else:
     st.info("No se encontraron noticias con esos filtros. Probá ampliar fechas o quitar el filtro de provincia.")
