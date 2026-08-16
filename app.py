@@ -31,10 +31,6 @@ st.markdown("""
     0% { transform: translate(0, 0); }
     100% { transform: translate(-100%, 0); }
 }
-.urgente {
-    color: #ff0000 !important;
-    font-weight: 900;
-}
 </style>
 <div class="marquee">
     <span>
@@ -55,8 +51,6 @@ with col2:
     fecha_hasta = st.date_input("Hasta", value=datetime.now().date())
 with col3:
     if st.button("🕒 Ahora", use_container_width=True):
-        fecha_desde = datetime.now().date()
-        fecha_hasta = datetime.now().date()
         st.rerun()
 
 # ========== FILTROS ==========
@@ -170,14 +164,15 @@ if noticias:
     noticias = sorted(noticias, key=lambda x: x["fecha"], reverse=True)
     for n in noticias:
         if n["grave"]:
-            st.markdown(f"""
+            html_grave = f'''
             <div style="background:#fff0f0; padding:10px; border-left:5px solid red; margin-bottom:10px;">
                 <span style="color:red; font-weight:bold; font-size:18px;">⚠️ ¡ÚLTIMO MOMENTO!</span><br>
-                <span style="color:red; font-size:16px;"><b>{n['titulo']}</b></span><br>
-                <small>{n['medio']} · {n['categoria']} · {n['fecha']}</small><br>
-                <a href="{n['link']}" target="_blank">Leer noticia →</a>
+                <span style="color:red; font-size:16px;"><b>{n["titulo"]}</b></span><br>
+                <small>{n["medio"]} · {n["categoria"]} · {n["fecha"]}</small><br>
+                <a href="{n["link"]}" target="_blank">Leer noticia →</a>
             </div>
-            """, unsafe_allow_html=True)
+            '''
+            st.markdown(html_grave, unsafe_allow_html=True)
         else:
             st.markdown(f"*{n['titulo']}*  \n*{n['medio']}* · {n['categoria']} · {n['fecha']}  \n[Leer →]({n['link']})")
             st.markdown("---")
@@ -200,4 +195,11 @@ st.markdown("""
     justify-content: center;
     z-index: 99999;
     font-size: 14px;
-    box-shadow: 0 -2
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+}
+</style>
+<div class="banner-ads">
+    📢 Espacio publicitario (AdSense u otra red) — no interrumpe
+</div>
+<div style="height: 65px;"></div>
+""", unsafe_allow_html=True)
