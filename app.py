@@ -5,13 +5,12 @@ from datetime import datetime, timedelta
 import feedparser
 import requests
 import re
-from collections import defaultdict
 
-# Intentamos importar yfinance (opcional)
+# Intentamos importar yfinance
 try:
     import yfinance as yf
     YFINANCE_OK = True
-except:
+except ImportError:
     YFINANCE_OK = False
 
 st.set_page_config(
@@ -21,42 +20,38 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ========== DISEÑO ESTILO DIARIO (fondo claro + tipografía NYT) ==========
+# ========== ESTILO DIARIO CLARO ==========
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800&family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Inter:wght@400;500;600&display=swap');
 
 html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
-    background-color: #f8f6f2;
+    background-color: #f7f5f0;
     color: #1a1a1a;
 }
 
-h1, h2, h3, .stTitle {
+h1, h2, h3 {
     font-family: 'Playfair Display', Georgia, serif !important;
     color: #111 !important;
-    letter-spacing: -0.4px;
 }
 
 .stApp {
-    background-color: #f8f6f2;
+    background-color: #f7f5f0;
 }
 
 section[data-testid="stSidebar"] {
     background: #ffffff;
-    border-right: 1px solid #e0ddd6;
+    border-right: 1px solid #e5e2db;
 }
 
 .stButton > button {
     background: #1a1a1a !important;
     color: white !important;
     border-radius: 4px !important;
-    font-weight: 500 !important;
 }
 
-a { color: #8B0000 !important; text-decoration: none !important; }
-a:hover { text-decoration: underline !important; }
-
+a { color: #8B0000 !important; }
 hr { border-color: #ddd !important; }
 
 .noticia-card {
@@ -64,40 +59,37 @@ hr { border-color: #ddd !important; }
     border: 1px solid #e5e2db;
     border-radius: 6px;
     padding: 16px;
-    margin-bottom: 16px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    margin-bottom: 14px;
 }
 
 .logo-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     width: 110px;
     height: 75px;
     border-radius: 6px;
-    font-weight: 700;
-    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: white;
+    font-weight: 700;
+    font-size: 15px;
     text-align: center;
-    line-height: 1.1;
+    line-height: 1.15;
 }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("Noticias de Argentina")
 
-# ========== LOGOS DE FUENTES (badge generado) ==========
+# ========== LOGOS ==========
 LOGOS = {
     "TN": {"color": "#00a0e3", "texto": "TN"},
-    "Infobae": {"color": "#e63946", "texto": "INFO\nBAE"},
+    "Infobae": {"color": "#e63946", "texto": "INFOBAE"},
     "Cadena 3": {"color": "#1a73e8", "texto": "C3"},
-    "La Nación": {"color": "#000000", "texto": "LA\nNACIÓN"},
+    "La Nación": {"color": "#111", "texto": "LA NACIÓN"},
     "Clarín": {"color": "#c8102e", "texto": "CLARÍN"},
     "Olé": {"color": "#ff6600", "texto": "OLÉ"},
-    "Infodefensa": {"color": "#2c3e50", "texto": "INFO\nDEFENSA"},
-    "La Gaceta": {"color": "#8B0000", "texto": "LA\nGACETA"},
-    "Los Andes": {"color": "#1a5276", "texto": "LOS\nANDES"},
-    "default": {"color": "#555555", "texto": "MEDIO"}
+    "Infodefensa": {"color": "#2c3e50", "texto": "INFODEFENSA"},
+    "default": {"color": "#555", "texto": "MEDIO"}
 }
 
 def get_logo_html(medio: str) -> str:
@@ -107,46 +99,36 @@ def get_logo_html(medio: str) -> str:
             key = k
             break
     logo = LOGOS[key]
-    return f'''
-    <div class="logo-badge" style="background:{logo['color']};">
-        {logo['texto'].replace(chr(10), '<br>')}
-    </div>
-    '''
+    return f'<div class="logo-badge" style="background:{logo["color"]};">{logo["texto"]}</div>'
 
 # ========== BANNER ==========
 @st.cache_data(ttl=300)
 def obtener_titulares_infobae():
     try:
         feed = feedparser.parse("https://www.infobae.com/arc/outboundfeeds/rss/")
-        return [e.title for e in feed.entries[:8]]
+        return [e.title for e in feed.entries[:7]]
     except:
-        return ["Cargando..."]
+        return ["Cargando titulares..."]
 
 texto_banner = "  •  ".join(obtener_titulares_infobae())
-
 st.markdown(f"""
-<div style="background:#111; color:#f5f0e6; padding:10px 0; font-size:13px; white-space:nowrap; overflow:hidden;">
-    <div style="display:inline-block; padding-left:100%; animation: marquee 40s linear infinite;">
+<div style="background:#111; color:#f5f0e6; padding:9px 0; font-size:13px; overflow:hidden; white-space:nowrap;">
+    <div style="display:inline-block; padding-left:100%; animation: marquee 42s linear infinite;">
         INFOBAE HOY · {texto_banner}
     </div>
 </div>
-<style>
-@keyframes marquee {{
-    0% {{ transform: translateX(0); }}
-    100% {{ transform: translateX(-100%); }}
-}}
-</style>
+<style>@keyframes marquee {{0%{{transform:translateX(0)}}100%{{transform:translateX(-100%)}}}}</style>
 """, unsafe_allow_html=True)
 
 st.markdown("---")
 
 # ========== FECHAS ==========
-col1, col2, col3 = st.columns([2, 2, 1])
-with col1:
+c1, c2, c3 = st.columns([2, 2, 1])
+with c1:
     fecha_desde = st.date_input("Desde", value=datetime.now().date() - timedelta(days=2))
-with col2:
+with c2:
     fecha_hasta = st.date_input("Hasta", value=datetime.now().date())
-with col3:
+with c3:
     if st.button("Actualizar", use_container_width=True):
         st.rerun()
 
@@ -164,8 +146,8 @@ categorias = {
 }
 categorias_activas = [c for c, v in categorias.items() if v]
 
-# ========== MAPA + BOLSA (lado a lado) ==========
-col_mapa, col_bolsa = st.columns([1.4, 1])
+# ========== MAPA + BOLSA ==========
+col_mapa, col_bolsa = st.columns([1.45, 1])
 
 with col_mapa:
     st.subheader("Provincias")
@@ -177,63 +159,85 @@ with col_mapa:
         except:
             return None
 
-    geojson_data = cargar_provincias()
-    m = folium.Map(location=[-38.4, -63.6], zoom_start=3.8, tiles="CartoDB positron")
-    if geojson_data:
+    geo = cargar_provincias()
+    m = folium.Map(location=[-38.4, -63.6], zoom_start=3.9, tiles="CartoDB positron")
+    if geo:
         folium.GeoJson(
-            geojson_data,
-            style_function=lambda x: {"fillColor": "#8B0000", "color": "#333", "weight": 1, "fillOpacity": 0.3},
-            highlight_function=lambda x: {"fillColor": "#c0392b", "weight": 2, "fillOpacity": 0.55},
+            geo,
+            style_function=lambda x: {"fillColor": "#8B0000", "color": "#333", "weight": 1, "fillOpacity": 0.28},
+            highlight_function=lambda x: {"fillColor": "#c0392b", "weight": 2.5, "fillOpacity": 0.55},
             tooltip=folium.GeoJsonTooltip(fields=["nombre"], aliases=["Provincia:"])
         ).add_to(m)
-    map_data = st_folium(m, width=None, height=320, key="mapa")
+    map_data = st_folium(m, height=310, key="mapa", use_container_width=True)
 
     provincia_seleccionada = None
     if map_data and map_data.get("last_object_clicked_tooltip"):
-        raw = map_data["last_object_clicked_tooltip"]
-        provincia_seleccionada = re.sub(r'(?i)^Provincia:\s*', '', str(raw)).strip()
+        raw = str(map_data["last_object_clicked_tooltip"])
+        provincia_seleccionada = re.sub(r'(?i)^Provincia:\s*', '', raw).strip()
         st.success(f"Filtrando: **{provincia_seleccionada}**")
 
 with col_bolsa:
     st.subheader("Mercados")
-    st.caption("EE.UU. y Argentina")
+    st.caption("EE.UU. · Argentina")
 
     if YFINANCE_OK:
         try:
-            tickers = {
-                "S&P 500": "^GSPC",
-                "Dow Jones": "^DJI",
-                "Nasdaq": "^IXIC",
-                "Merval": "^MERV",
-                "YPF": "YPF",
-                "Galicia": "GGAL"
+            data = {
+                "S&P 500": yf.Ticker("^GSPC").history(period="5d"),
+                "Dow Jones": yf.Ticker("^DJI").history(period="5d"),
+                "Nasdaq": yf.Ticker("^IXIC").history(period="5d"),
+                "Merval": yf.Ticker("^MERV").history(period="5d"),
+                "YPF": yf.Ticker("YPF").history(period="5d"),
+                "Galicia": yf.Ticker("GGAL").history(period="5d"),
             }
-            for nombre, ticker in tickers.items():
-                t = yf.Ticker(ticker)
-                hist = t.history(period="5d")
-                if not hist.empty:
+            for nombre, hist in data.items():
+                if not hist.empty and len(hist) >= 2:
                     precio = hist["Close"].iloc[-1]
                     cambio = ((hist["Close"].iloc[-1] / hist["Close"].iloc[-2]) - 1) * 100
-                    color = "green" if cambio >= 0 else "red"
-                    st.markdown(
-                        f"""
-                        <div style="background:white; border:1px solid #e5e2db; border-radius:6px; 
-                                    padding:10px 14px; margin-bottom:8px; display:flex; justify-content:space-between;">
-                            <span style="font-weight:600;">{nombre}</span>
-                            <span>
-                                <b>{precio:,.2f}</b> 
-                                <span style="color:{color}; font-size:13px;">({cambio:+.2f}%)</span>
-                            </span>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
+                    color = "#14804A" if cambio >= 0 else "#C0392B"
+                    st.markdown(f"""
+                    <div style="background:white;border:1px solid #e5e2db;border-radius:6px;
+                                padding:9px 12px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;">
+                        <span style="font-weight:600;font-size:14px;">{nombre}</span>
+                        <span>
+                            <b style="font-size:14px;">{precio:,.2f}</b>
+                            <span style="color:{color};font-size:12px;margin-left:6px;">({cambio:+.2f}%)</span>
+                        </span>
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
                     st.write(f"{nombre}: sin datos")
-        except Exception as e:
-            st.info("No se pudieron cargar los datos de mercados en este momento.")
+        except Exception:
+            st.warning("Error al obtener datos de mercado. Intentá más tarde.")
     else:
-        st.info("Instalá `yfinance` para ver la bolsa en vivo:\n`pip install yfinance`")
+        # Versión de respaldo (sin yfinance)
+        st.markdown("""
+        <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:12px;font-size:13px;">
+            <b>Para ver la bolsa en vivo</b><br>
+            Ejecutá en la terminal:<br>
+            <code>pip install yfinance</code><br><br>
+            Luego reiniciá la app.
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Datos estáticos de ejemplo para que no quede vacío
+        ejemplo = [
+            ("S&P 500", "5.890", "+0.42%"),
+            ("Dow Jones", "42.150", "+0.28%"),
+            ("Nasdaq", "19.320", "+0.65%"),
+            ("Merval", "2.145.000", "-0.35%"),
+            ("YPF", "28.450", "+1.12%"),
+            ("Galicia", "6.820", "-0.80%"),
+        ]
+        for nombre, precio, cambio in ejemplo:
+            color = "#14804A" if "+" in cambio else "#C0392B"
+            st.markdown(f"""
+            <div style="background:white;border:1px solid #e5e2db;border-radius:6px;
+                        padding:9px 12px;margin-bottom:7px;display:flex;justify-content:space-between;">
+                <span style="font-weight:600;">{nombre}</span>
+                <span><b>{precio}</b> <span style="color:{color};font-size:12px;">{cambio}</span></span>
+            </div>
+            """, unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -244,11 +248,15 @@ def extraer_imagen(entry):
     if hasattr(entry, "media_content") and entry.media_content:
         for m in entry.media_content:
             url = m.get("url")
-            if url and url.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+            if url and any(ext in url.lower() for ext in [".jpg", ".jpeg", ".png", ".webp"]):
                 return url
     if hasattr(entry, "media_thumbnail") and entry.media_thumbnail:
         return entry.media_thumbnail[0].get("url")
-    content = entry.get("summary", "") or (entry.content[0].value if entry.get("content") else "")
+    content = ""
+    if entry.get("content"):
+        content = entry.content[0].get("value", "")
+    elif entry.get("summary"):
+        content = entry.summary
     match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', content, re.IGNORECASE)
     return match.group(1) if match else None
 
@@ -258,33 +266,45 @@ def obtener_noticia_infobae():
         feed = feedparser.parse("https://www.infobae.com/arc/outboundfeeds/rss/")
         if feed.entries:
             e = feed.entries[0]
-            return {"titulo": e.title, "link": e.link, "imagen": extraer_imagen(e)}
+            return {
+                "titulo": e.title,
+                "link": e.link,
+                "imagen": extraer_imagen(e)
+            }
     except:
         return None
 
 n_infobae = obtener_noticia_infobae()
 
-col1, col2 = st.columns(2)
-with col1:
+col_a, col_b = st.columns(2)
+
+with col_a:
     if n_infobae:
+        st.markdown('<div class="noticia-card">', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:11px;color:#8B0000;font-weight:600;margin-bottom:8px;">INFOBAE · DESTACADA</div>', unsafe_allow_html=True)
+        
+        if n_infobae.get("imagen"):
+            st.image(n_infobae["imagen"], use_container_width=True)
+        else:
+            st.markdown(get_logo_html("Infobae"), unsafe_allow_html=True)
+        
         st.markdown(f"""
-        <div class="noticia-card">
-            <div style="font-size:11px; color:#8B0000; font-weight:600; margin-bottom:8px;">INFOBAE · DESTACADA</div>
-            {"<img src='" + n_infobae['imagen'] + "' style='width:100%; max-height:180px; object-fit:cover; border-radius:4px; margin-bottom:12px;'>" if n_infobae.get("imagen") else ""}
-            <div style="font-family:'Playfair Display',serif; font-size:20px; font-weight:700; line-height:1.3;">
-                {n_infobae['titulo']}
-            </div>
-            <a href="{n_infobae['link']}" target="_blank" style="font-size:13px;">Leer →</a>
+        <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;line-height:1.3;margin:12px 0;">
+            {n_infobae['titulo']}
+        </div>
+        <a href="{n_infobae['link']}" target="_blank">Leer en Infobae →</a>
         </div>
         """, unsafe_allow_html=True)
+    else:
+        st.info("No se pudo cargar la noticia de Infobae")
 
-with col2:
+with col_b:
     st.markdown("""
     <div class="noticia-card">
-        <div style="font-size:11px; color:#00a0e3; font-weight:600; margin-bottom:8px;">TN · EN VIVO</div>
-        <div style="position:relative; padding-bottom:56.25%; height:0;">
-            <iframe src="https://www.youtube.com/embed/live_stream?channel=UCj6PcyLvpnIRT_2W_mwa9Aw&autoplay=0" 
-                    style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;" 
+        <div style="font-size:11px;color:#00a0e3;font-weight:600;margin-bottom:8px;">TN · TRANSMISIÓN EN VIVO</div>
+        <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:4px;">
+            <iframe src="https://www.youtube.com/embed/live_stream?channel=UCj6PcyLvpnIRT_2W_mwa9Aw" 
+                    style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" 
                     allowfullscreen></iframe>
         </div>
     </div>
@@ -292,7 +312,7 @@ with col2:
 
 st.markdown("---")
 
-# ========== NOTICIAS (layout tipo diario) ==========
+# ========== NOTICIAS ==========
 st.subheader("Últimas noticias")
 
 TN_FEED = "https://tn.com.ar/arc/outboundfeeds/google-news-feed/?outputType=xml"
@@ -300,10 +320,7 @@ TN_FEED = "https://tn.com.ar/arc/outboundfeeds/google-news-feed/?outputType=xml"
 feeds_extra = {
     "Política": ["http://cadena3.com/rss/PoliticayEconomia.xml"],
     "Economía": ["http://cadena3.com/rss/PoliticayEconomia.xml"],
-    "Defensa / Seguridad": [
-        "https://www.infodefensa.com/rss.php",
-        "http://cadena3.com/rss/PoliticayEconomia.xml"
-    ],
+    "Defensa / Seguridad": ["https://www.infodefensa.com/rss.php"],
     "Entretenimiento": ["http://cadena3.com/rss/Espectaculos.xml"],
     "Deportes": ["http://cadena3.com/rss/Deportes.xml", "https://www.ole.com.ar/rss/ultimas-noticias/"],
 }
@@ -329,8 +346,8 @@ def obtener_noticias(cats, desde, hasta, provincia=None):
     for url in set(fuentes):
         try:
             feed = feedparser.parse(url)
-            medio = feed.feed.get("title", "Medio")[:35]
-            for entry in feed.entries[:12]:
+            medio = feed.feed.get("title", "Medio")[:40]
+            for entry in feed.entries[:10]:
                 try:
                     f = datetime(*entry.published_parsed[:6]).date()
                 except:
@@ -341,7 +358,7 @@ def obtener_noticias(cats, desde, hasta, provincia=None):
                 if provincia and provincia.lower() not in titulo.lower():
                     continue
                 cat = detectar_categoria_tn(entry.link) if "tn.com.ar" in url else "Sociedad"
-                if cat not in cats and "tn.com.ar" in url:
+                if "tn.com.ar" in url and cat not in cats:
                     continue
                 lista.append({
                     "titulo": titulo,
@@ -358,76 +375,79 @@ def obtener_noticias(cats, desde, hasta, provincia=None):
 if "pagina" not in st.session_state:
     st.session_state.pagina = 0
 
-with st.spinner("Cargando..."):
+with st.spinner("Cargando noticias..."):
     noticias = obtener_noticias(categorias_activas, fecha_desde, fecha_hasta, provincia_seleccionada)
 
 if noticias:
     noticias = sorted(noticias, key=lambda x: x["fecha"], reverse=True)
     TAMANO = 5
-    total_pag = max(1, (len(noticias)-1)//TAMANO + 1)
-    st.session_state.pagina = max(0, min(st.session_state.pagina, total_pag-1))
-    pagina_noticias = noticias[st.session_state.pagina*TAMANO : (st.session_state.pagina+1)*TAMANO]
+    total = max(1, (len(noticias) - 1) // TAMANO + 1)
+    st.session_state.pagina = max(0, min(st.session_state.pagina, total - 1))
+    pagina = noticias[st.session_state.pagina * TAMANO : (st.session_state.pagina + 1) * TAMANO]
 
-    # ===== LAYOUT TIPO DIARIO =====
-    # Primera noticia grande (destacada)
-    if len(pagina_noticias) > 0:
-        n = pagina_noticias[0]
-        col_img, col_txt = st.columns([1.3, 2.7])
-        with col_img:
+    # Primera noticia grande
+    if pagina:
+        n = pagina[0]
+        col1, col2 = st.columns([1.2, 2.8])
+        with col1:
             if n.get("imagen"):
                 st.image(n["imagen"], use_container_width=True)
             else:
                 st.markdown(get_logo_html(n["medio"]), unsafe_allow_html=True)
-        with col_txt:
+        with col2:
             st.markdown(f"""
-            <div style="font-size:12px; color:#8B0000; font-weight:600; margin-bottom:6px;">{n['medio'].upper()} · {n['categoria']}</div>
-            <div style="font-family:'Playfair Display',serif; font-size:26px; font-weight:700; line-height:1.25; margin-bottom:10px;">
+            <div style="font-size:12px;color:#8B0000;font-weight:600;margin-bottom:6px;">
+                {n['medio'].upper()} · {n['categoria']}
+            </div>
+            <div style="font-family:'Playfair Display',serif;font-size:24px;font-weight:700;line-height:1.25;margin-bottom:10px;">
                 {n['titulo']}
             </div>
             <a href="{n['link']}" target="_blank">Leer nota completa →</a>
             """, unsafe_allow_html=True)
+
         st.markdown("---")
 
-    # Resto en grilla 2 columnas
-    resto = pagina_noticias[1:]
+    # Resto en 2 columnas
+    resto = pagina[1:]
     if resto:
         cols = st.columns(2)
         for i, n in enumerate(resto):
             with cols[i % 2]:
-                st.markdown(f"""
-                <div class="noticia-card">
-                    <div style="display:flex; gap:12px; align-items:flex-start;">
-                        <div>
-                            {f'<img src="{n["imagen"]}" style="width:90px; height:65px; object-fit:cover; border-radius:4px;">' if n.get("imagen") else get_logo_html(n["medio"])}
+                with st.container():
+                    st.markdown('<div class="noticia-card">', unsafe_allow_html=True)
+                    c_img, c_txt = st.columns([1, 2.2])
+                    with c_img:
+                        if n.get("imagen"):
+                            st.image(n["imagen"], use_container_width=True)
+                        else:
+                            st.markdown(get_logo_html(n["medio"]), unsafe_allow_html=True)
+                    with c_txt:
+                        st.markdown(f"""
+                        <div style="font-size:11px;color:#666;margin-bottom:4px;">{n['medio']} · {n['fecha']}</div>
+                        <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:600;line-height:1.3;">
+                            <a href="{n['link']}" target="_blank" style="color:#111!important;">{n['titulo']}</a>
                         </div>
-                        <div>
-                            <div style="font-size:11px; color:#666; margin-bottom:4px;">{n['medio']} · {n['fecha']}</div>
-                            <div style="font-family:'Playfair Display',serif; font-size:16px; font-weight:600; line-height:1.3;">
-                                <a href="{n['link']}" target="_blank" style="color:#111 !important;">{n['titulo']}</a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                        """, unsafe_allow_html=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
 
     # Paginación
     st.markdown("---")
-    c1, c2, c3 = st.columns([1, 2, 1])
-    with c1:
-        if st.button("← Anterior", disabled=st.session_state.pagina==0):
+    ca, cb, cc = st.columns([1, 2, 1])
+    with ca:
+        if st.button("← Anterior", disabled=st.session_state.pagina == 0, use_container_width=True):
             st.session_state.pagina -= 1
             st.rerun()
-    with c2:
-        st.markdown(f"<div style='text-align:center; padding-top:8px;'>Página {st.session_state.pagina+1} de {total_pag}</div>", unsafe_allow_html=True)
-    with c3:
-        if st.button("Siguiente →", disabled=st.session_state.pagina >= total_pag-1):
+    with cb:
+        st.markdown(f"<div style='text-align:center;padding-top:8px;'>Página {st.session_state.pagina+1} de {total}</div>", unsafe_allow_html=True)
+    with cc:
+        if st.button("Siguiente →", disabled=st.session_state.pagina >= total-1, use_container_width=True):
             st.session_state.pagina += 1
             st.rerun()
 else:
     st.info("No se encontraron noticias con esos filtros.")
 
 st.markdown("""
-<div style="text-align:center; padding:30px 0 10px; color:#888; font-size:12px; border-top:1px solid #ddd; margin-top:40px;">
-    Noticias de Argentina · Estilo diario · Buenos Aires
+<div style="text-align:center;padding:25px 0 10px;color:#888;font-size:12px;border-top:1px solid #ddd;margin-top:30px;">
+    Noticias de Argentina
 </div>
 """, unsafe_allow_html=True)
