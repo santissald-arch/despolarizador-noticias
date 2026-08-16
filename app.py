@@ -16,8 +16,6 @@ st.set_page_config(
 )
 
 # ========== ESTILO DIARIO CLARO ==========
-# Fondo claro + texto oscuro forzado en TODOS los elementos (evita que el
-# tema oscuro por defecto de Streamlit deje letras claras sobre fondo claro).
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Inter:wght@400;500;600&display=swap');
@@ -30,7 +28,6 @@ html, body, [class*="css"] {
 
 .stApp { background-color: #f7f5f0; }
 
-/* Texto oscuro forzado en todo el contenido de la app */
 .stApp, .stApp p, .stApp span, .stApp li, .stApp label, .stApp div,
 [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p,
 [data-testid="stWidgetLabel"] p, [data-testid="stCaptionContainer"],
@@ -44,16 +41,22 @@ h1, h2, h3 {
     color: #111 !important;
 }
 
+/* Sidebar más angosto */
 section[data-testid="stSidebar"] {
     background: #ffffff;
     border-right: 1px solid #e5e2db;
+    width: 235px !important;
+    min-width: 235px !important;
+    max-width: 235px !important;
 }
+section[data-testid="stSidebar"] > div { width: 235px !important; }
+[data-testid="stSidebarUserContent"] { padding: 1rem 0.9rem !important; }
 section[data-testid="stSidebar"] * { color: #1a1a1a !important; }
 section[data-testid="stSidebar"] h1,
 section[data-testid="stSidebar"] h2,
-section[data-testid="stSidebar"] h3 { color: #111 !important; }
+section[data-testid="stSidebar"] h3 { color: #111 !important; font-size: 1.1rem !important; }
+section[data-testid="stSidebar"] .stCheckbox { margin-bottom: -8px; }
 
-/* Inputs de fecha */
 [data-testid="stDateInput"] input {
     color: #1a1a1a !important;
     background: #ffffff !important;
@@ -93,17 +96,6 @@ hr { border-color: #ddd !important; }
     box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
 
-.medio-chip {
-    display: inline-block;
-    color: #ffffff !important;
-    padding: 3px 11px;
-    border-radius: 999px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: .4px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
-}
-
 .mercado-box {
     background: white;
     border: 1px solid #e5e2db;
@@ -117,7 +109,23 @@ hr { border-color: #ddd !important; }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("Noticias de Argentina")
+# ========== SOL DE MAYO (logo) ==========
+def sol_de_mayo_svg(size=48, color="#EFA400", borde="#B8860B"):
+    rayos = ""
+    for i in range(16):
+        ang = i * (360 / 16)
+        rayos += f'<rect x="47" y="1" width="6" height="24" rx="1.5" fill="{color}" transform="rotate({ang} 50 50)"></rect>'
+    return f'''<svg width="{size}" height="{size}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        {rayos}
+        <circle cx="50" cy="50" r="23" fill="{color}" stroke="{borde}" stroke-width="2"/>
+    </svg>'''
+
+st.markdown(f"""
+<div style="display:flex;align-items:center;gap:14px;margin-bottom:4px;">
+    {sol_de_mayo_svg(46)}
+    <h1 style="margin:0;">Noticias de Argentina</h1>
+</div>
+""", unsafe_allow_html=True)
 
 # ========== LOGOS / COLORES DE MEDIOS ==========
 LOGOS = {
@@ -128,24 +136,18 @@ LOGOS = {
     "Clarín": {"color": "#c8102e", "texto": "CLARÍN"},
     "Olé": {"color": "#ff6600", "texto": "OLÉ"},
     "Infodefensa": {"color": "#2c3e50", "texto": "INFODEFENSA"},
-    "default": {"color": "#555", "texto": "MEDIO"}
 }
 
-# Paleta de respaldo para diarios provinciales que no están en LOGOS,
-# así cada uno tiene un color propio y consistente (nunca negro/plano).
 PALETA_MEDIOS = [
     "#0F5C97", "#B5482A", "#2F6F4E", "#7A3B69", "#B08900",
     "#374B8C", "#8C3B3B", "#2E7D6B", "#5B4B8A", "#A2572B", "#1B6E8C", "#6E7A2B"
 ]
 
 def get_logo_html(medio: str) -> str:
-    key = "default"
-    for k in LOGOS:
+    for k, v in LOGOS.items():
         if k.lower() in medio.lower():
-            key = k
-            break
-    logo = LOGOS[key]
-    return f'<div class="logo-badge" style="background:{logo["color"]};">{logo["texto"]}</div>'
+            return f'<div class="logo-badge" style="background:{v["color"]};">{v["texto"]}</div>'
+    return f'<div class="logo-badge" style="background:#132038;">{sol_de_mayo_svg(46)}</div>'
 
 def color_para_medio(nombre: str) -> str:
     for k, v in LOGOS.items():
@@ -154,9 +156,21 @@ def color_para_medio(nombre: str) -> str:
     idx = int(hashlib.md5(nombre.encode("utf-8")).hexdigest(), 16) % len(PALETA_MEDIOS)
     return PALETA_MEDIOS[idx]
 
+def _oscurecer(hex_color: str, factor: float = 0.7) -> str:
+    hex_color = hex_color.lstrip("#")
+    if len(hex_color) != 6:
+        return "#333333"
+    r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+    r, g, b = int(r * factor), int(g * factor), int(b * factor)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
 def chip_medio(nombre: str) -> str:
     color = color_para_medio(nombre)
-    return f'<span class="medio-chip" style="background:{color};">{nombre.upper()}</span>'
+    oscuro = _oscurecer(color)
+    return (f'<span style="display:inline-block;background:linear-gradient(135deg,{color},{oscuro});'
+            f'color:#ffffff;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;'
+            f'letter-spacing:.5px;box-shadow:0 2px 4px rgba(0,0,0,.20);font-family:Inter,sans-serif;">'
+            f'{nombre.upper()}</span>')
 
 # ========== BANNER ==========
 @st.cache_data(ttl=300)
@@ -227,8 +241,42 @@ PROVINCIA_MEDIOS = {
     "Santa Cruz": [("La Opinión Austral", "laopinionaustral.com.ar"), ("Tiempo Sur", "tiemposur.com.ar")],
     "Santa Fe": [("El Litoral", "ellitoral.com"), ("La Capital", "lacapital.com.ar")],
     "Santiago del Estero": [("El Liberal", "elliberal.com.ar"), ("Nuevo Diario", "nuevodiarioweb.com.ar")],
-    "Tierra del Fuego, Antártida e Islas del Atlántico Sur": [("El Sureño", "elsurenio.com.ar"), ("Provincia 23", "provincia23.com.ar")],
+    "Tierra del Fuego, Antártida e Islas del Atlántico Sur": [("El Sureño", "elsureno.com.ar"), ("Provincia 23", "provincia23.com.ar")],
     "Tucumán": [("La Gaceta", "lagaceta.com.ar"), ("Contexto Tucumán", "contextotucuman.com")],
+}
+
+# ========== MAPA POLÍTICO: GOBERNADORES ==========
+COLOR_PARTIDO = {"peronismo": "#C0392B", "lla": "#8E44AD", "pro": "#F1C40F", "otro": "#8C97A6"}
+
+GOBERNADORES = {
+    "Buenos Aires": {"nombre": "Axel Kicillof", "partido": "Unión por la Patria (peronismo)", "color": "peronismo",
+                     "resultado": [("Kicillof (UP)", 44.8), ("Grindetti (JxC)", 26.7), ("Píparo (LLA)", 24.6)]},
+    "Ciudad Autónoma de Buenos Aires": {"nombre": "Jorge Macri", "partido": "PRO", "color": "pro",
+                     "resultado": [("Macri (PRO)", 49.7), ("Santoro (UP)", 32.3)]},
+    "Catamarca": {"nombre": "Raúl Jalil", "partido": "Unión por la Patria (PJ)", "color": "peronismo", "resultado": None},
+    "Chaco": {"nombre": "Leandro Zdero", "partido": "UCR (Juntos por el Cambio)", "color": "otro", "resultado": None},
+    "Chubut": {"nombre": "Ignacio Torres", "partido": "PRO", "color": "pro", "resultado": None},
+    "Córdoba": {"nombre": "Martín Llaryora", "partido": "PJ (Hacemos Unidos por Córdoba)", "color": "peronismo", "resultado": None},
+    "Corrientes": {"nombre": "Juan Pablo Valdés", "partido": "UCR (Vamos Corrientes)", "color": "otro",
+                     "resultado": [("Valdés (Vamos Corrientes)", 51.9), ("Ascúa (Fuerza Patria)", 20.1), ("Colombi", 16.8)]},
+    "Entre Ríos": {"nombre": "Rogelio Frigerio", "partido": "PRO", "color": "pro", "resultado": None},
+    "Formosa": {"nombre": "Gildo Insfrán", "partido": "Unión por la Patria (PJ)", "color": "peronismo", "resultado": None},
+    "Jujuy": {"nombre": "Carlos Sadir", "partido": "UCR", "color": "otro", "resultado": None},
+    "La Pampa": {"nombre": "Sergio Ziliotto", "partido": "Unión por la Patria (PJ)", "color": "peronismo", "resultado": None},
+    "La Rioja": {"nombre": "Ricardo Quintela", "partido": "Unión por la Patria (PJ)", "color": "peronismo", "resultado": None},
+    "Mendoza": {"nombre": "Alfredo Cornejo", "partido": "UCR", "color": "otro", "resultado": None},
+    "Misiones": {"nombre": "Hugo Passalacqua", "partido": "Frente Renovador de la Concordia (partido provincial)", "color": "otro", "resultado": None},
+    "Neuquén": {"nombre": "Rolando Figueroa", "partido": "Comunidad (partido provincial)", "color": "otro", "resultado": None},
+    "Río Negro": {"nombre": "Alberto Weretilneck", "partido": "Juntos Somos Río Negro (partido provincial)", "color": "otro", "resultado": None},
+    "Salta": {"nombre": "Gustavo Sáenz", "partido": "Partido de la Victoria (partido provincial)", "color": "otro", "resultado": None},
+    "San Juan": {"nombre": "Marcelo Orrego", "partido": "Producción y Trabajo (partido provincial)", "color": "otro", "resultado": None},
+    "San Luis": {"nombre": "Claudio Poggi", "partido": "Ahora San Luis (partido provincial)", "color": "otro", "resultado": None},
+    "Santa Cruz": {"nombre": "Claudio Vidal", "partido": "SER (partido provincial)", "color": "otro", "resultado": None},
+    "Santa Fe": {"nombre": "Maximiliano Pullaro", "partido": "UCR", "color": "otro", "resultado": None},
+    "Santiago del Estero": {"nombre": "Elías Suárez", "partido": "Frente Cívico por Santiago (partido provincial)", "color": "otro",
+                     "resultado": [("Suárez (Frente Cívico)", 69.8), ("Despierta Santiago", 12.3), ("La Libertad Avanza", 12.0)]},
+    "Tierra del Fuego, Antártida e Islas del Atlántico Sur": {"nombre": "Gustavo Melella", "partido": "Unión por la Patria (PJ)", "color": "peronismo", "resultado": None},
+    "Tucumán": {"nombre": "Osvaldo Jaldo", "partido": "Unión por la Patria (PJ)", "color": "peronismo", "resultado": None},
 }
 
 def _normalizar(texto: str) -> str:
@@ -248,6 +296,38 @@ def buscar_medios_provincia(provincia: str):
             return PROVINCIA_MEDIOS[original]
     return []
 
+def buscar_gobernador(provincia: str):
+    if not provincia:
+        return None
+    norm = _normalizar(provincia)
+    for key, info in GOBERNADORES.items():
+        nk = _normalizar(key)
+        if nk == norm or nk in norm or norm in nk:
+            return key, info
+    return None
+
+def color_provincia_mapa(nombre_geojson: str) -> str:
+    resultado = buscar_gobernador(nombre_geojson or "")
+    if resultado:
+        _, info = resultado
+        return COLOR_PARTIDO.get(info["color"], "#cccccc")
+    return "#cccccc"
+
+PALABRAS_RUIDO = [
+    "contacto", "quienes somos", "quiénes somos", "publicidad", "politica de privacidad",
+    "política de privacidad", "terminos y condiciones", "términos y condiciones", "aviso legal",
+    "mapa del sitio", "suscribite", "suscripcion", "suscripción", "newsletter",
+    "trabaja con nosotros", "staff", "nosotros", "defensor del lector", "codigo de etica",
+    "código de ética", "publicanos", "anunciar"
+]
+
+def es_ruido(titulo: str, link: str) -> bool:
+    t = titulo.lower()
+    l = link.lower()
+    if len(titulo.strip()) < 12:
+        return True
+    return any(p in t or p in l for p in PALABRAS_RUIDO)
+
 @st.cache_data(ttl=600)
 def obtener_noticias_provincia(provincia: str):
     medios = buscar_medios_provincia(provincia)
@@ -256,20 +336,19 @@ def obtener_noticias_provincia(provincia: str):
         try:
             url = f"https://news.google.com/rss/search?q=site:{dominio}&hl=es-419&gl=AR&ceid=AR:es-419"
             feed = feedparser.parse(url)
-            for entry in feed.entries[:6]:
+            for entry in feed.entries[:10]:
+                titulo = entry.title
+                if " - " in titulo:
+                    titulo = titulo.rsplit(" - ", 1)[0]
+                if es_ruido(titulo, entry.link):
+                    continue
                 try:
                     f = datetime(*entry.published_parsed[:6])
                 except Exception:
                     f = datetime.now()
-                titulo = entry.title
-                if " - " in titulo:
-                    titulo = titulo.rsplit(" - ", 1)[0]
-                noticias.append({
-                    "titulo": titulo,
-                    "link": entry.link,
-                    "medio": nombre_medio,
-                    "fecha": f,
-                })
+                noticias.append({"titulo": titulo, "link": entry.link, "medio": nombre_medio, "fecha": f})
+                if len([n for n in noticias if n["medio"] == nombre_medio]) >= 6:
+                    break
         except Exception:
             continue
     noticias.sort(key=lambda x: x["fecha"], reverse=True)
@@ -280,7 +359,7 @@ col_mapa, col_bolsa = st.columns([1.45, 1])
 
 with col_mapa:
     st.subheader("Provincias")
-    st.caption("Hacé clic en una provincia para ver sus diarios locales")
+    st.caption("Rojo = peronismo · Amarillo = PRO · Violeta = La Libertad Avanza · Gris = otros partidos")
 
     @st.cache_data
     def cargar_provincias():
@@ -295,8 +374,11 @@ with col_mapa:
     if geo:
         folium.GeoJson(
             geo,
-            style_function=lambda x: {"fillColor": "#8B0000", "color": "#333", "weight": 1, "fillOpacity": 0.28},
-            highlight_function=lambda x: {"fillColor": "#c0392b", "weight": 2.5, "fillOpacity": 0.55},
+            style_function=lambda x: {
+                "fillColor": color_provincia_mapa(x["properties"].get("nombre", "")),
+                "color": "#333", "weight": 1, "fillOpacity": 0.62
+            },
+            highlight_function=lambda x: {"fillColor": "#111", "weight": 2.5, "fillOpacity": 0.75},
             tooltip=folium.GeoJsonTooltip(fields=["nombre"], aliases=["Provincia:"])
         ).add_to(m)
     map_data = st_folium(m, height=310, key="mapa", use_container_width=True)
@@ -310,8 +392,50 @@ with col_mapa:
         if st.session_state.get("ultima_provincia") != provincia_seleccionada:
             st.session_state.ultima_provincia = provincia_seleccionada
             st.session_state.ocultar_provincia = False
-        if not st.session_state.get("ocultar_provincia", False):
-            st.success(f"Filtrando: **{provincia_seleccionada}**")
+
+    # Presidente al pie del mapa
+    st.markdown(f"""
+    <div style="display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px 10px;
+                background:white;border:1px solid #e5e2db;border-radius:6px;">
+        {sol_de_mayo_svg(28)}
+        <div>
+            <div style="font-size:10px;color:#888;letter-spacing:.5px;">PRESIDENTE DE LA NACIÓN</div>
+            <div style="font-size:14px;font-weight:700;color:#111;">Javier Milei <span style="font-weight:400;color:#666;">· La Libertad Avanza</span></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Ficha política de la provincia seleccionada
+    if provincia_seleccionada and not st.session_state.get("ocultar_provincia", False):
+        resultado_gob = buscar_gobernador(provincia_seleccionada)
+        if resultado_gob:
+            _, info = resultado_gob
+            color = COLOR_PARTIDO.get(info["color"], "#888")
+            ficha = f"""
+            <div style="background:white;border:1px solid #e5e2db;border-radius:8px;padding:12px 14px;margin-top:10px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                    <span style="width:12px;height:12px;border-radius:50%;background:{color};display:inline-block;"></span>
+                    <b style="font-size:15px;color:#111;">{info['nombre']}</b>
+                </div>
+                <div style="font-size:12px;color:#555;margin-bottom:8px;">Gobernador/a de {provincia_seleccionada} · {info['partido']}</div>
+            """
+            if info["resultado"]:
+                max_pct = max(p for _, p in info["resultado"])
+                filas = ""
+                for i, (nombre_c, pct) in enumerate(info["resultado"]):
+                    barra_color = color if i == 0 else "#c7c7c7"
+                    filas += f"""
+                    <div style="margin-bottom:5px;">
+                        <div style="font-size:11px;color:#333;display:flex;justify-content:space-between;">
+                            <span>{nombre_c}</span><span><b>{pct:.1f}%</b></span>
+                        </div>
+                        <div style="background:#eee;border-radius:4px;height:8px;overflow:hidden;">
+                            <div style="width:{pct/max_pct*100:.1f}%;background:{barra_color};height:100%;"></div>
+                        </div>
+                    </div>"""
+                ficha += f'<div style="font-size:11px;color:#888;margin-bottom:4px;">Cómo ganó la gobernación:</div>{filas}'
+            ficha += "</div>"
+            st.markdown(ficha, unsafe_allow_html=True)
 
 with col_bolsa:
     st.subheader("Mercados")
@@ -340,12 +464,8 @@ with col_bolsa:
             return None
 
     TICKERS = [
-        ("S&P 500", "^GSPC"),
-        ("Dow Jones", "^DJI"),
-        ("Nasdaq", "^IXIC"),
-        ("Merval", "^MERV"),
-        ("YPF", "YPF"),
-        ("Galicia", "GGAL"),
+        ("S&P 500", "^GSPC"), ("Dow Jones", "^DJI"), ("Nasdaq", "^IXIC"),
+        ("Merval", "^MERV"), ("YPF", "YPF"), ("Galicia", "GGAL"),
     ]
 
     hubo_error = False
@@ -374,6 +494,68 @@ with col_bolsa:
 
     if hubo_error:
         st.caption("Algunos valores no se pudieron actualizar en este momento.")
+
+st.markdown("---")
+
+# ========== CONGRESO ==========
+def barra_bancas(datos, total):
+    segmentos = "".join([
+        f'<div style="width:{count/total*100:.2f}%;background:{color};height:100%;" title="{nombre}: {count}"></div>'
+        for nombre, count, color in datos
+    ])
+    leyenda = "".join([
+        f'<div style="display:flex;align-items:center;gap:6px;margin:3px 12px 3px 0;font-size:12px;color:#333;">'
+        f'<span style="width:10px;height:10px;border-radius:50%;background:{color};display:inline-block;"></span>'
+        f'{nombre} ({count})</div>'
+        for nombre, count, color in datos
+    ])
+    return f"""
+    <div style="display:flex;height:22px;border-radius:6px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.15);margin-bottom:8px;">{segmentos}</div>
+    <div style="display:flex;flex-wrap:wrap;">{leyenda}</div>
+    """
+
+DIPUTADOS = [
+    ("La Libertad Avanza", 95, COLOR_PARTIDO["lla"]),
+    ("Unión por la Patria", 93, COLOR_PARTIDO["peronismo"]),
+    ("Provincias Unidas", 18, "#16A085"),
+    ("PRO", 12, COLOR_PARTIDO["pro"]),
+    ("UCR", 6, "#3498DB"),
+    ("Otros bloques", 257 - 95 - 93 - 18 - 12 - 6, "#95A5A6"),
+]
+SENADO = [
+    ("La Libertad Avanza", 20, COLOR_PARTIDO["lla"]),
+    ("Fuerza Patria (peronismo)", 28, COLOR_PARTIDO["peronismo"]),
+    ("Provincias Unidas", 3, "#16A085"),
+    ("Partidos provinciales", 6, "#8C97A6"),
+    ("Otros", 15, "#95A5A6"),
+]
+
+st.subheader("El Congreso, banca por banca")
+st.caption("Composición vigente desde el recambio legislativo de diciembre de 2025")
+col_dip, col_sen = st.columns(2)
+with col_dip:
+    st.markdown("**Cámara de Diputados** (257 bancas)")
+    st.markdown(barra_bancas(DIPUTADOS, 257), unsafe_allow_html=True)
+with col_sen:
+    st.markdown("**Senado** (72 bancas)")
+    st.markdown(barra_bancas(SENADO, 72), unsafe_allow_html=True)
+
+st.markdown(f"""
+<div style="background:white;border:1px solid #e5e2db;border-left:4px solid #B8860B;border-radius:6px;
+            padding:12px 16px;margin:14px 0;display:flex;gap:16px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:220px;">
+        <div style="font-size:12px;color:#14804A;font-weight:700;margin-bottom:4px;">✔ SE APROBARON</div>
+        <div style="font-size:13px;color:#333;">Presupuesto 2026 · Ley de Inocencia Fiscal</div>
+    </div>
+    <div style="flex:1;min-width:220px;">
+        <div style="font-size:12px;color:#B8860B;font-weight:700;margin-bottom:4px;">🕐 EN DEBATE</div>
+        <div style="font-size:13px;color:#333;">Reforma laboral · Reforma tributaria · Reforma previsional · Acuerdo Mercosur–Unión Europea</div>
+    </div>
+</div>
+<div style="font-size:11px;color:#888;margin-top:-8px;margin-bottom:10px;">
+    Resumen orientativo: el estado de cada proyecto cambia con frecuencia. Para el detalle en tiempo real, consultá hcdn.gob.ar o senado.gob.ar.
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -433,27 +615,49 @@ def extraer_imagen(entry):
     return match.group(1) if match else None
 
 @st.cache_data(ttl=300)
-def obtener_noticia_infobae():
+def obtener_noticia_infobae_rss():
     try:
         feed = feedparser.parse("https://www.infobae.com/arc/outboundfeeds/rss/")
         if feed.entries:
             e = feed.entries[0]
-            return {
-                "titulo": e.title,
-                "link": e.link,
-                "imagen": extraer_imagen(e)
-            }
+            return {"titulo": e.title, "link": e.link, "imagen": extraer_imagen(e)}
     except:
         return None
+    return None
 
-n_infobae = obtener_noticia_infobae()
+@st.cache_data(ttl=300)
+def obtener_tapa_infobae():
+    """Intenta traer la noticia principal de la tapa (home) de Infobae en este momento."""
+    try:
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; NoticiasApp/1.0)"}
+        r = requests.get("https://www.infobae.com/", headers=headers, timeout=8)
+        html = r.text
+        m = re.search(r'href="(https://www\.infobae\.com/[a-z0-9\-]+/\d{4}/\d{2}/\d{2}/[a-z0-9\-]+/)"', html)
+        if not m:
+            return None
+        link = m.group(1)
+        r2 = requests.get(link, headers=headers, timeout=8)
+        html2 = r2.text
+        titulo_m = re.search(r'<meta property="og:title" content="([^"]+)"', html2)
+        imagen_m = re.search(r'<meta property="og:image" content="([^"]+)"', html2)
+        if not titulo_m:
+            return None
+        return {
+            "titulo": titulo_m.group(1),
+            "link": link,
+            "imagen": imagen_m.group(1) if imagen_m else None,
+        }
+    except Exception:
+        return None
+
+n_infobae = obtener_tapa_infobae() or obtener_noticia_infobae_rss()
 
 col_a, col_b = st.columns(2)
 
 with col_a:
     if n_infobae:
         st.markdown('<div class="noticia-card">', unsafe_allow_html=True)
-        st.markdown(f'{chip_medio("Infobae")} <span style="font-size:11px;color:#8B0000;font-weight:600;margin-left:6px;">DESTACADA</span>', unsafe_allow_html=True)
+        st.markdown(f'{chip_medio("Infobae")} <span style="font-size:11px;color:#8B0000;font-weight:600;margin-left:6px;">TAPA DEL DIARIO</span>', unsafe_allow_html=True)
 
         if n_infobae.get("imagen"):
             st.image(n_infobae["imagen"], use_container_width=True)
@@ -488,14 +692,26 @@ st.markdown("---")
 st.subheader("Últimas noticias")
 
 TN_FEED = "https://tn.com.ar/arc/outboundfeeds/google-news-feed/?outputType=xml"
+INFODEFENSA_FEED = "https://www.infodefensa.com/rss.php"
+INFODEFENSA_AR_URL = "https://www.infodefensa.com/america-argentina.php"
 
 feeds_extra = {
     "Política": ["http://cadena3.com/rss/PoliticayEconomia.xml"],
     "Economía": ["http://cadena3.com/rss/PoliticayEconomia.xml"],
-    "Defensa / Seguridad": ["https://www.infodefensa.com/rss.php"],
+    "Defensa / Seguridad": [INFODEFENSA_FEED],
     "Entretenimiento": ["http://cadena3.com/rss/Espectaculos.xml"],
     "Deportes": ["http://cadena3.com/rss/Deportes.xml", "https://www.ole.com.ar/rss/ultimas-noticias/"],
 }
+
+PALABRAS_ARGENTINA_DEFENSA = [
+    "argentina", "argentino", "argentina/", "faa", "fuerza aerea argentina", "fuerza aérea argentina",
+    "ejercito argentino", "ejército argentino", "armada argentina", "milei", "f-16", "f16",
+    "ministerio de defensa", "gendarmeria", "gendarmería", "prefectura"
+]
+
+def es_defensa_argentina(entry) -> bool:
+    texto = (entry.title + " " + entry.link).lower()
+    return any(p in texto for p in PALABRAS_ARGENTINA_DEFENSA)
 
 def detectar_categoria_tn(link):
     link = link.lower()
@@ -518,8 +734,10 @@ def obtener_noticias(cats, desde, hasta):
     for url in set(fuentes):
         try:
             feed = feedparser.parse(url)
-            medio = feed.feed.get("title", "Medio")[:40]
-            for entry in feed.entries[:10]:
+            medio = "Infodefensa" if "infodefensa" in url else feed.feed.get("title", "Medio")[:40]
+            for entry in feed.entries[:30 if "infodefensa" in url else 10]:
+                if "infodefensa" in url and not es_defensa_argentina(entry):
+                    continue
                 try:
                     f = datetime(*entry.published_parsed[:6]).date()
                 except:
@@ -527,19 +745,46 @@ def obtener_noticias(cats, desde, hasta):
                 if not (desde <= f <= hasta):
                     continue
                 titulo = entry.title
-                cat = detectar_categoria_tn(entry.link) if "tn.com.ar" in url else "Sociedad"
-                if "tn.com.ar" in url and cat not in cats:
-                    continue
+                if "tn.com.ar" in url:
+                    cat = detectar_categoria_tn(entry.link)
+                    if cat not in cats:
+                        continue
+                elif "infodefensa" in url:
+                    cat = "Defensa / Seguridad"
+                else:
+                    cat = "Sociedad"
                 lista.append({
-                    "titulo": titulo,
-                    "link": entry.link,
-                    "medio": medio,
-                    "categoria": cat,
-                    "fecha": f,
-                    "imagen": extraer_imagen(entry)
+                    "titulo": titulo, "link": entry.link, "medio": medio, "categoria": cat,
+                    "fecha": f, "imagen": extraer_imagen(entry)
                 })
+                if "infodefensa" in url and len([n for n in lista if n["medio"] == "Infodefensa"]) >= 8:
+                    break
         except:
             continue
+
+    # Búsqueda puntual de F-16 para reforzar la sección de Defensa
+    if "Defensa / Seguridad" in cats:
+        try:
+            feed_f16 = feedparser.parse(
+                "https://news.google.com/rss/search?q=F-16+Argentina+site:infodefensa.com&hl=es-419&gl=AR&ceid=AR:es-419"
+            )
+            for entry in feed_f16.entries[:5]:
+                try:
+                    f = datetime(*entry.published_parsed[:6]).date()
+                except Exception:
+                    f = datetime.now().date()
+                if not (desde <= f <= hasta):
+                    continue
+                titulo = entry.title.rsplit(" - ", 1)[0] if " - " in entry.title else entry.title
+                if any(n["titulo"] == titulo for n in lista):
+                    continue
+                lista.append({
+                    "titulo": titulo, "link": entry.link, "medio": "Infodefensa", "categoria": "Defensa / Seguridad",
+                    "fecha": f, "imagen": extraer_imagen(entry)
+                })
+        except Exception:
+            pass
+
     return lista
 
 if "pagina" not in st.session_state:
@@ -548,6 +793,9 @@ if "pagina" not in st.session_state:
 with st.spinner("Cargando noticias..."):
     noticias = obtener_noticias(categorias_activas, fecha_desde, fecha_hasta)
 
+if "Defensa / Seguridad" in categorias_activas:
+    st.caption(f"Las noticias de Infodefensa muestran solo lo referido a Argentina · [Ver más]({INFODEFENSA_AR_URL})")
+
 if noticias:
     noticias = sorted(noticias, key=lambda x: x["fecha"], reverse=True)
     TAMANO = 5
@@ -555,7 +803,6 @@ if noticias:
     st.session_state.pagina = max(0, min(st.session_state.pagina, total - 1))
     pagina = noticias[st.session_state.pagina * TAMANO : (st.session_state.pagina + 1) * TAMANO]
 
-    # Primera noticia grande
     if pagina:
         n = pagina[0]
         col1, col2 = st.columns([1.2, 2.8])
@@ -575,7 +822,6 @@ if noticias:
 
         st.markdown("---")
 
-    # Resto en 2 columnas
     resto = pagina[1:]
     if resto:
         cols = st.columns(2)
@@ -598,7 +844,6 @@ if noticias:
                         """, unsafe_allow_html=True)
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Paginación
     st.markdown("---")
     ca, cb, cc = st.columns([1, 2, 1])
     with ca:
@@ -614,7 +859,7 @@ if noticias:
 else:
     st.info("No se encontraron noticias con esos filtros.")
 
-st.markdown("""
+st.markdown(f"""
 <div style="text-align:center;padding:25px 0 10px;color:#888;font-size:12px;border-top:1px solid #ddd;margin-top:30px;">
     Noticias de Argentina
 </div>
