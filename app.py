@@ -24,73 +24,39 @@ html, body, [class*="css"] {
     color: #e8e6e3;
 }
 
-h1, h2, h3, .stTitle {
+h1, h2, h3 {
     font-family: 'Playfair Display', serif !important;
     color: #f5f0e6 !important;
-    letter-spacing: -0.5px;
 }
 
 .stApp {
     background: linear-gradient(180deg, #0c0c0c 0%, #141414 100%);
 }
 
-/* Sidebar premium */
 section[data-testid="stSidebar"] {
     background: #111111;
     border-right: 1px solid #2a2a2a;
 }
 
-/* Cards elegantes */
 .premium-card {
     background: linear-gradient(145deg, #1a1a1a, #151515);
     border: 1px solid #2c2c2c;
     border-radius: 16px;
     padding: 24px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-    transition: all 0.3s ease;
 }
 
-.premium-card:hover {
-    border-color: #c9a84c;
-    box-shadow: 0 12px 40px rgba(201, 168, 76, 0.15);
-}
-
-/* Botones elegantes */
 .stButton > button {
     background: linear-gradient(135deg, #c9a84c, #a88b3a) !important;
     color: #0c0c0c !important;
     border: none !important;
     border-radius: 8px !important;
     font-weight: 600 !important;
-    letter-spacing: 0.3px;
-    transition: all 0.25s ease;
 }
 
-.stButton > button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(201, 168, 76, 0.35);
-}
-
-/* Links */
-a {
-    color: #c9a84c !important;
-    text-decoration: none !important;
-}
-a:hover {
-    color: #e0c06e !important;
-}
-
-/* Separadores */
-hr {
-    border-color: #2a2a2a !important;
-}
-
-/* Marquee premium */
-.marquee {
-    background: #0a0a0a !important;
-    border-bottom: 1px solid #2a2a2a;
-    color: #c9a84c !important;
-}
+a { color: #c9a84c !important; }
+a:hover { color: #e0c06e !important; }
+hr { border-color: #2a2a2a !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -218,126 +184,89 @@ if map_data and map_data.get("last_object_clicked_tooltip"):
     provincia_seleccionada = re.sub(r'(?i)^Provincia:\s*', '', str(raw)).strip()
     st.success(f"Filtrando noticias de: **{provincia_seleccionada}**")
 
-# ========== DIARIOS PROVINCIALES (2 por provincia) ==========
+# ========== DIARIOS PROVINCIALES ==========
 DIARIOS_PROVINCIALES = {
-    "Buenos Aires": [
-        "https://www.eldia.com/rss",
-        "https://www.lanueva.com/rss"
-    ],
-    "Ciudad Autónoma de Buenos Aires": [
-        "https://www.clarin.com/rss/lo-ultimo/",
-        "https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml"
-    ],
-    "Catamarca": [
-        "https://www.elancasti.com.ar/rss",
-        "https://www.catamarcactual.com.ar/feed"
-    ],
-    "Chaco": [
-        "https://www.diarionorte.com/rss",
-        "https://www.primeraedicionweb.com.ar/feed"
-    ],
-    "Chubut": [
-        "https://www.elchubut.com.ar/rss",
-        "https://www.diariojornada.com.ar/rss"
-    ],
-    "Córdoba": [
-        "https://www.lavoz.com.ar/rss",
-        "https://www.lavozdelinterior.com.ar/rss"
-    ],
-    "Corrientes": [
-        "https://www.ellitoral.com.ar/rss",
-        "https://www.diarioepoca.com/rss"
-    ],
-    "Entre Ríos": [
-        "https://www.unoentrerios.com.ar/rss",
-        "https://www.elheraldo.com.ar/rss"
-    ],
-    "Formosa": [
-        "https://www.diariolaformosa.com/rss",
-        "https://www.formosa.gob.ar/rss"
-    ],
-    "Jujuy": [
-        "https://www.eltribuno.com/jujuy/rss",
-        "https://www.jujuyalmomento.com/feed"
-    ],
-    "La Pampa": [
-        "https://www.laarena.com.ar/rss",
-        "https://www.eldiariodelapampa.com.ar/rss"
-    ],
-    "La Rioja": [
-        "https://www.elindependiente.com.ar/rss",
-        "https://www.riojavirtual.com.ar/feed"
-    ],
-    "Mendoza": [
-        "https://www.losandes.com.ar/rss",
-        "https://www.diariouno.com.ar/rss"
-    ],
-    "Misiones": [
-        "https://www.misionesonline.net/feed",
-        "https://www.elterritorio.com.ar/rss/ahora/"
-    ],
-    "Neuquén": [
-        "https://www.lmneuquen.com/rss",
-        "https://www.rionegro.com.ar/feed/"
-    ],
-    "Río Negro": [
-        "https://www.rionegro.com.ar/feed/",
-        "https://www.bariloche2000.com/rss"
-    ],
-    "Salta": [
-        "https://www.eltribuno.com/salta/rss",
-        "https://www.saltalibre.com/feed"
-    ],
-    "San Juan": [
-        "https://www.diariodecuyo.com.ar/rss",
-        "https://www.tiemposanjuan.com/rss"
-    ],
-    "San Luis": [
-        "https://www.eldiariodelarepublica.com/rss",
-        "https://www.sanluis.gov.ar/rss"
-    ],
-    "Santa Cruz": [
-        "https://www.laopinionaustral.com.ar/rss",
-        "https://www.tiemposur.com.ar/rss"
-    ],
-    "Santa Fe": [
-        "https://www.lacapital.com.ar/rss",
-        "https://www.ellitoral.com/rss"
-    ],
-    "Santiago del Estero": [
-        "https://www.elliberal.com.ar/rss",
-        "https://www.diariopanorama.com/rss"
-    ],
-    "Tierra del Fuego": [
-        "https://www.surenio.com.ar/rss",
-        "https://www.tierradelfuego.gov.ar/rss"
-    ],
-    "Tucumán": [
-        "https://www.lagaceta.com.ar/rss",
-        "https://feeds.feedburner.com/LaGaceta"
-    ],
+    "Buenos Aires": ["https://www.eldia.com/rss", "https://www.lanueva.com/rss"],
+    "Ciudad Autónoma de Buenos Aires": ["https://www.clarin.com/rss/lo-ultimo/", "https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml"],
+    "Catamarca": ["https://www.elancasti.com.ar/rss"],
+    "Chaco": ["https://www.diarionorte.com/rss"],
+    "Chubut": ["https://www.elchubut.com.ar/rss", "https://www.diariojornada.com.ar/rss"],
+    "Córdoba": ["https://www.lavoz.com.ar/rss"],
+    "Corrientes": ["https://www.ellitoral.com.ar/rss"],
+    "Entre Ríos": ["https://www.unoentrerios.com.ar/rss"],
+    "Formosa": ["https://www.diariolaformosa.com/rss"],
+    "Jujuy": ["https://www.eltribuno.com/jujuy/rss"],
+    "La Pampa": ["https://www.laarena.com.ar/rss"],
+    "La Rioja": ["https://www.elindependiente.com.ar/rss"],
+    "Mendoza": ["https://www.losandes.com.ar/rss", "https://www.diariouno.com.ar/rss"],
+    "Misiones": ["https://www.misionesonline.net/feed", "https://www.elterritorio.com.ar/rss/ahora/"],
+    "Neuquén": ["https://www.lmneuquen.com/rss", "https://www.rionegro.com.ar/feed/"],
+    "Río Negro": ["https://www.rionegro.com.ar/feed/"],
+    "Salta": ["https://www.eltribuno.com/salta/rss"],
+    "San Juan": ["https://www.diariodecuyo.com.ar/rss"],
+    "San Luis": ["https://www.eldiariodelarepublica.com/rss"],
+    "Santa Cruz": ["https://www.laopinionaustral.com.ar/rss"],
+    "Santa Fe": ["https://www.lacapital.com.ar/rss", "https://www.ellitoral.com/rss"],
+    "Santiago del Estero": ["https://www.elliberal.com.ar/rss", "https://www.diariopanorama.com/rss"],
+    "Tierra del Fuego": ["https://www.surenio.com.ar/rss"],
+    "Tucumán": ["https://www.lagaceta.com.ar/rss", "https://feeds.feedburner.com/LaGaceta"],
 }
+
+# ========== FUNCIÓN MEJORADA PARA EXTRAER IMÁGENES ==========
+def extraer_imagen(entry) -> str | None:
+    # 1. media_content
+    if hasattr(entry, "media_content") and entry.media_content:
+        for m in entry.media_content:
+            url = m.get("url")
+            if url and ("image" in m.get("type", "") or url.lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".gif"))):
+                return url
+        if entry.media_content[0].get("url"):
+            return entry.media_content[0]["url"]
+
+    # 2. media_thumbnail
+    if hasattr(entry, "media_thumbnail") and entry.media_thumbnail:
+        url = entry.media_thumbnail[0].get("url")
+        if url:
+            return url
+
+    # 3. enclosures
+    if hasattr(entry, "enclosures") and entry.enclosures:
+        for enc in entry.enclosures:
+            url = enc.get("href") or enc.get("url")
+            if url and (enc.get("type", "").startswith("image") or url.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))):
+                return url
+
+    # 4. links
+    if hasattr(entry, "links"):
+        for link in entry.links:
+            if link.get("type", "").startswith("image") or (link.get("href", "").lower().endswith((".jpg", ".jpeg", ".png", ".webp"))):
+                return link.get("href")
+
+    # 5. Buscar en summary / content (HTML)
+    content = ""
+    if entry.get("content"):
+        content = entry.content[0].get("value", "")
+    elif entry.get("summary"):
+        content = entry.summary
+    elif entry.get("description"):
+        content = entry.description
+
+    if content:
+        # Busca src de img
+        match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', content, re.IGNORECASE)
+        if match:
+            return match.group(1)
+        
+        # A veces viene como data-src
+        match = re.search(r'data-src=["\']([^"\']+)["\']', content, re.IGNORECASE)
+        if match:
+            return match.group(1)
+
+    return None
 
 # ========== NOTICIA DEL DÍA + TN VIVO ==========
 st.markdown("---")
 st.subheader("Destacados")
-
-def extraer_imagen(entry):
-    if hasattr(entry, "media_content") and entry.media_content:
-        for m in entry.media_content:
-            url = m.get("url")
-            if url and (m.get("type", "").startswith("image") or url.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))):
-                return url
-    if hasattr(entry, "media_thumbnail") and entry.media_thumbnail:
-        return entry.media_thumbnail[0].get("url")
-    if hasattr(entry, "enclosures") and entry.enclosures:
-        for enc in entry.enclosures:
-            url = enc.get("href") or enc.get("url")
-            if url and url.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
-                return url
-    content = entry.get("summary", "") or (entry.get("content")[0].get("value", "") if entry.get("content") else "")
-    match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', content, re.IGNORECASE)
-    return match.group(1) if match else None
 
 @st.cache_data(ttl=300)
 def obtener_noticia_infobae():
@@ -435,21 +364,19 @@ def obtener_noticias(cats, desde, hasta, provincia=None):
     lista = []
     palabras_graves = ["urgente", "último momento", "ultimo momento", "alerta", "grave", "tragedia", "muerte"]
 
-    # 1. Fuentes nacionales (TN + extras)
     fuentes = [TN_FEED]
     for cat in cats:
         if cat in feeds_extra:
             fuentes.extend(feeds_extra[cat])
 
-    # 2. Si hay provincia seleccionada → agregar sus 2 diarios principales
     if provincia and provincia in DIARIOS_PROVINCIALES:
         fuentes.extend(DIARIOS_PROVINCIALES[provincia])
 
-    for url in set(fuentes):  # sin duplicados
+    for url in set(fuentes):
         try:
             feed = feedparser.parse(url)
             medio_nombre = feed.feed.get("title", "Medio")[:40]
-            for entry in feed.entries[:15]:
+            for entry in feed.entries[:12]:
                 try:
                     f = datetime(*entry.published_parsed[:6]).date()
                 except:
@@ -460,20 +387,18 @@ def obtener_noticias(cats, desde, hasta, provincia=None):
 
                 titulo = entry.title
 
-                # Filtro de provincia
-                if provincia and provincia.lower() not in titulo.lower() and provincia not in DIARIOS_PROVINCIALES.get(provincia, []):
-                    # Si es un diario provincial, lo dejamos pasar
-                    if url not in DIARIOS_PROVINCIALES.get(provincia, []):
+                # Filtro provincia
+                if provincia:
+                    es_diario_provincial = url in DIARIOS_PROVINCIALES.get(provincia, [])
+                    if not es_diario_provincial and provincia.lower() not in titulo.lower():
                         continue
 
-                # Categoría (solo para TN, los provinciales van como Sociedad por defecto)
                 if "tn.com.ar" in url:
                     cat = detectar_categoria_tn(entry.link)
+                    if cat not in cats:
+                        continue
                 else:
                     cat = "Sociedad"
-
-                if cat not in cats and "tn.com.ar" in url:
-                    continue
 
                 es_grave = any(p in titulo.lower() for p in palabras_graves)
                 imagen = extraer_imagen(entry)
@@ -492,7 +417,7 @@ def obtener_noticias(cats, desde, hasta, provincia=None):
 
     return lista
 
-# ========== PAGINACIÓN ==========
+# ========== PAGINACIÓN + FOTOS ==========
 if "pagina" not in st.session_state:
     st.session_state.pagina = 0
 
@@ -501,69 +426,98 @@ with st.spinner("Cargando noticias..."):
 
 if noticias:
     noticias = sorted(noticias, key=lambda x: x["fecha"], reverse=True)
+
     TAMANO_PAGINA = 5
     total_paginas = max(1, (len(noticias) - 1) // TAMANO_PAGINA + 1)
-
     st.session_state.pagina = max(0, min(st.session_state.pagina, total_paginas - 1))
 
     inicio = st.session_state.pagina * TAMANO_PAGINA
     fin = inicio + TAMANO_PAGINA
     noticias_pagina = noticias[inicio:fin]
 
+    # ========== AQUÍ SE MUESTRAN LAS 5 FOTOS ==========
     for n in noticias_pagina:
-        col_img, col_txt = st.columns([1, 5])
+        col_img, col_txt = st.columns([1.1, 4.9])
+
         with col_img:
             if n.get("imagen"):
-                st.markdown(f'''
-                    <img src="{n["imagen"]}" style="width:110px; height:75px; object-fit:cover; border-radius:8px;" 
-                         onerror="this.style.display='none'">
-                ''', unsafe_allow_html=True)
+                st.markdown(
+                    f'''
+                    <img src="{n["imagen"]}" 
+                         width="130" 
+                         height="90"
+                         style="width:130px; height:90px; object-fit:cover; border-radius:10px; display:block; border:1px solid #2a2a2a;"
+                         loading="lazy"
+                         onerror="this.src='https://via.placeholder.com/130x90/1a1a1a/555555?text=Sin+foto'; this.onerror=null;">
+                    ''',
+                    unsafe_allow_html=True
+                )
             else:
-                st.markdown('''
-                    <div style="width:110px; height:75px; background:#1f1f1f; border-radius:8px; 
-                                display:flex; align-items:center; justify-content:center; color:#555; font-size:11px;">
-                        Sin imagen
+                st.markdown(
+                    '''
+                    <div style="width:130px; height:90px; background:#1a1a1a; 
+                                border-radius:10px; display:flex; align-items:center; 
+                                justify-content:center; color:#555; font-size:12px; border:1px solid #2a2a2a;">
+                        Sin foto
                     </div>
-                ''', unsafe_allow_html=True)
+                    ''',
+                    unsafe_allow_html=True
+                )
 
         with col_txt:
             if n["grave"]:
-                st.markdown(f"""
-                <div style="border-left:3px solid #c9a84c; padding-left:14px; margin-bottom:8px;">
-                    <span style="color:#c9a84c; font-size:11px; font-weight:600;">ÚLTIMO MOMENTO</span><br>
-                    <b style="font-size:16px; color:#f5f0e6;">{n['titulo']}</b><br>
-                    <small style="color:#888;">{n['medio']} · {n['categoria']} · {n['fecha']}</small> · 
-                    <a href="{n['link']}" target="_blank">Leer</a>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(
+                    f"""
+                    <div style="border-left:3px solid #c9a84c; padding-left:14px; margin-bottom:6px;">
+                        <span style="color:#c9a84c; font-size:12px; font-weight:600;">⚠️ ÚLTIMO MOMENTO</span><br>
+                        <b style="font-size:16px; color:#f5f0e6; line-height:1.35;">{n['titulo']}</b><br>
+                        <small style="color:#888;">{n['medio']} · {n['categoria']} · {n['fecha']}</small><br>
+                        <a href="{n['link']}" target="_blank" style="font-size:13px;">Leer →</a>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
             else:
-                st.markdown(f"""
-                <div style="padding:4px 0 10px 0;">
-                    <b style="font-size:16px; color:#f5f0e6;">{n['titulo']}</b><br>
-                    <small style="color:#888;">{n['medio']} · {n['categoria']} · {n['fecha']}</small> · 
-                    <a href="{n['link']}" target="_blank">Leer</a>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(
+                    f"""
+                    <div style="padding:2px 0 8px 0;">
+                        <b style="font-size:16px; color:#f5f0e6; line-height:1.35;">{n['titulo']}</b><br>
+                        <small style="color:#888;">{n['medio']} · {n['categoria']} · {n['fecha']}</small> · 
+                        <a href="{n['link']}" target="_blank" style="font-size:13px;">Leer →</a>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+
+    # Paginación
     st.markdown("---")
     col_ant, col_info, col_sig = st.columns([1, 2, 1])
+
     with col_ant:
         if st.button("← Anterior", use_container_width=True, disabled=(st.session_state.pagina == 0)):
             st.session_state.pagina -= 1
             st.rerun()
+
     with col_info:
-        st.markdown(f"<div style='text-align:center; padding-top:8px; color:#aaa;'>Página <b>{st.session_state.pagina + 1}</b> de <b>{total_paginas}</b></div>", unsafe_allow_html=True)
+        st.markdown(
+            f"<div style='text-align:center; padding-top:8px; color:#aaa;'>Página <b>{st.session_state.pagina + 1}</b> de <b>{total_paginas}</b></div>",
+            unsafe_allow_html=True
+        )
+
     with col_sig:
         if st.button("Siguiente →", use_container_width=True, disabled=(st.session_state.pagina >= total_paginas - 1)):
             st.session_state.pagina += 1
             st.rerun()
-else:
-    st.info("No se encontraron noticias con esos filtros. Probá ampliar las fechas o seleccionar otra provincia.")
 
-# ========== FOOTER ==========
+else:
+    st.info("No se encontraron noticias con esos filtros.")
+
+# Footer
 st.markdown("""
-<div style="height:40px;"></div>
-<div style="text-align:center; padding:20px 0; border-top:1px solid #2a2a2a; color:#666; font-size:12px;">
+<div style="height:30px;"></div>
+<div style="text-align:center; padding:16px 0; border-top:1px solid #2a2a2a; color:#555; font-size:12px;">
     Noticias de Argentina · Diseño premium · Buenos Aires
 </div>
 """, unsafe_allow_html=True)
