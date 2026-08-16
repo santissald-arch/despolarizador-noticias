@@ -212,7 +212,7 @@ def obtener_feed_infobae():
 
 feed_infobae = obtener_feed_infobae()
 
-# Separar la primera noticia (Principal) y el resto para la marquesina cinematográfica
+# Extraer primera noticia para destacar e hilos secundarios para marquesina móvil
 if feed_infobae and feed_infobae.entries:
     primera_noticia = feed_infobae.entries[0]
     titulo_principal = primera_noticia.title
@@ -223,9 +223,9 @@ if feed_infobae and feed_infobae.entries:
 else:
     titulo_principal = "No se pudo cargar la noticia principal de Infobae."
     link_principal = "#"
-    texto_marquesina = "Cargando el resto de los titulares de Infobae..."
+    texto_marquesina = "Cargando titulares de la marquesina federal..."
 
-# ========== BANNER DOBLE: MARQUESINA + INFOBAE FIJO ==========
+# ========== BANNER PREMIUM: MARQUESINA + INFOBAE FIJO ==========
 st.markdown(f"""
 <div class="header-container">
     <div class="marquee-box">
@@ -245,7 +245,7 @@ st.markdown(f"""
 
 st.markdown("---")
 
-# ========== FECHAS ==========
+# ========== RANGO DE FECHAS ==========
 c1, c2, c3 = st.columns(3)
 with c1:
     fecha_desde = st.date_input("Desde", value=datetime.now().date() - timedelta(days=2))
@@ -256,7 +256,7 @@ with c3:
     if st.button("Actualizar", use_container_width=True):
         st.rerun()
 
-# ========== SIDEBAR ==========
+# ========== BARRA LATERAL (CATEGORÍAS) ==========
 st.sidebar.header("Categorías")
 categorias = {
     "Política": st.sidebar.checkbox("Política", True),
@@ -270,7 +270,7 @@ categorias = {
 }
 categorias_activas = [c for c, v in categorias.items() if v]
 
-# ========== DIARIOS POR PROVINCIA ==========
+# ========== DICCIONARIO DE MEDIOS FEDERALES (24 Provincias) ==========
 PROVINCIA_MEDIOS = {
     "Buenos Aires": {"coords": [-36.67, -60.50], "medios": [("El Día", "https://eldia.com"), ("Diario Hoy", "https://diariohoy.net")]},
     "CABA": {"coords": [-34.60, -58.38], "medios": [("Clarín", "https://clarin.com"), ("La Nación", "https://lanacion.com.ar")]},
