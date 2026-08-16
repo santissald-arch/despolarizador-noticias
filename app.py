@@ -3,23 +3,54 @@ import folium
 from streamlit_folium import st_folium
 from datetime import datetime, timedelta
 import feedparser
-import pandas as pd
+import requests
 
-# Configuración de la página
-st.set_page_config(
-    page_title="Despolarizador de Noticias Argentina",
-    page_icon="🇦🇷",
-    layout="wide"
-)
+st.set_page_config(page_title="Despolarizador Argentina", page_icon="🇦🇷", layout="wide")
 
 st.title("🇦🇷 Despolarizador de Noticias - Argentina")
-st.caption("Noticias de distintos medios lado a lado • Filtros + Línea de tiempo + Mapa")
 
-# ========== LÍNEA DE TIEMPO ARRIBA ==========
-col1, col2, col3, col4 = st.columns([2, 2, 1, 2])
+# ========== BANNER DESPLAZÁNDOSE (ARRIBA) ==========
+st.markdown("""
+<style>
+.marquee {
+    width: 100%;
+    overflow: hidden;
+    background: #000;
+    color: #00ff00;
+    padding: 8px 0;
+    font-weight: bold;
+    font-size: 16px;
+    white-space: nowrap;
+}
+.marquee span {
+    display: inline-block;
+    padding-left: 100%;
+    animation: marquee 25s linear infinite;
+}
+@keyframes marquee {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(-100%, 0); }
+}
+.urgente {
+    color: #ff0000 !important;
+    font-weight: 900;
+}
+</style>
+<div class="marquee">
+    <span>
+        🟢 Noticias importantes del país • Seguimos de cerca la actualidad argentina • 
+        ⚠️ ¡Último momento! Revisá las alertas rojas abajo • 
+        🟢 Despolarizamos la información para vos
+    </span>
+</div>
+""", unsafe_allow_html=True)
 
+st.markdown("---")
+
+# ========== LÍNEA DE TIEMPO ==========
+col1, col2, col3 = st.columns([2, 2, 1])
 with col1:
-    fecha_desde = st.date_input("Desde", value=datetime.now().date() - timedelta(days=3))
+    fecha_desde = st.date_input("Desde", value=datetime.now().date() - timedelta(days=2))
 with col2:
     fecha_hasta = st.date_input("Hasta", value=datetime.now().date())
 with col3:
@@ -27,18 +58,12 @@ with col3:
         fecha_desde = datetime.now().date()
         fecha_hasta = datetime.now().date()
         st.rerun()
-with col4:
-    st.write("")  # espacio
 
-st.markdown("---")
-
-# ========== FILTROS IZQUIERDA ==========
-st.sidebar.header("📂 Filtros de categorías")
-st.sidebar.markdown("Marcá las que quieras ver:")
-
+# ========== FILTROS ==========
+st.sidebar.header("📂 Categorías")
 categorias = {
-    "Política": st.sidebar.checkbox("Política", value=True),
-    "Economía": st.sidebar.checkbox("Economía", value=True),
+    "Política": st.sidebar.checkbox("Política", True),
+    "Economía": st.sidebar.checkbox("Economía", True),
     "Defensa / Seguridad": st.sidebar.checkbox("Defensa / Seguridad"),
     "Entretenimiento": st.sidebar.checkbox("Entretenimiento"),
     "Debate / Opinión": st.sidebar.checkbox("Debate / Opinión"),
@@ -46,135 +71,133 @@ categorias = {
     "Internacional": st.sidebar.checkbox("Internacional"),
     "Deportes": st.sidebar.checkbox("Deportes"),
 }
+categorias_activas = [c for c, v in categorias.items() if v]
 
-categorias_activas = [cat for cat, activa in categorias.items() if activa]
+# ========== MAPA ==========
+st.subheader("🗺️ Mapa de Provincias (hacé clic para filtrar noticias de esa provincia)")
 
-# ========== MAPA DE ARGENTINA ==========
-st.subheader("🗺️ Mapa de Argentina")
+@st.cache_data
+def cargar_provincias():
+    try:
+        r = requests.get("https://apis.datos.gob.ar/georef/api/provincias.geojson", timeout=10)
+        return r.json()
+    except:
+        return None
 
-m = folium.Map(
-    location=[-38.4161, -63.6167],  # Centro de Argentina
-    zoom_start=4,
-    tiles="OpenStreetMap"
-)
+geojson_data = cargar_provincias()
 
-# Marcadores de ejemplo en ciudades importantes (después se pueden asociar a noticias)
-ciudades = {
-    "Buenos Aires": [-34.6037, -58.3816],
-    "Córdoba": [-31.4201, -64.1888],
-    "Rosario": [-32.9468, -60.6393],
-    "Mendoza": [-32.8895, -68.8458],
-    "Salta": [-24.7859, -65.4117],
-}
+m = folium.Map(location=[-38.4, -63.6], zoom_start=4, tiles="CartoDB positron")
 
-for ciudad, coords in ciudades.items():
-    folium.Marker(
-        coords,
-        popup=ciudad,
-        tooltip=ciudad,
-        icon=folium.Icon(color="blue", icon="info-sign")
+if geojson_data:
+    folium.GeoJson(
+        geojson_data,
+        name="Provincias",
+        style_function=lambda x: {"fillColor": "#3388ff", "color": "black", "weight": 1, "fillOpacity": 0.4},
+        highlight_function=lambda x: {"fillColor": "#ff7800", "color": "black", "weight": 3, "fillOpacity": 0.7},
+        tooltip=folium.GeoJsonTooltip(fields=["nombre"], aliases=["Provincia:"])
     ).add_to(m)
 
-st_folium(m, width=None, height=420)
+map_data = st_folium(m, width=None, height=450, key="mapa")
 
-# ========== NOTICIAS REALES CON RSS ==========
-st.subheader("📰 Noticias filtradas")
+provincia_seleccionada = None
+if map_data and map_data.get("last_object_clicked_tooltip"):
+    provincia_seleccionada = map_data["last_object_clicked_tooltip"]
+    st.success(f"📍 Filtrando noticias de: *{provincia_seleccionada}*")
 
-# Feeds RSS reales de medios argentinos (públicos y gratuitos)
+# ========== NOTICIAS ==========
+st.subheader("📰 Noticias")
+
 feeds = {
     "Política": [
         "https://www.clarin.com/rss/politica/",
-        "https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml&_website=la-nacion",
+        "http://cadena3.com/rss/PoliticayEconomia.xml",
+        "https://derechadiario.com.ar/us/rss/cat/argentina"
     ],
     "Economía": [
         "https://www.clarin.com/rss/economia/",
-        "https://www.ambito.com/rss/pages/economia.xml",
+        "http://cadena3.com/rss/PoliticayEconomia.xml"
     ],
-    "Sociedad": [
-        "https://www.clarin.com/rss/sociedad/",
-    ],
-    "Internacional": [
-        "https://www.clarin.com/rss/mundo/",
-    ],
-    "Entretenimiento": [
-        "https://www.clarin.com/rss/espectaculos/",
-    ],
-    "Deportes": [
-        "https://www.clarin.com/rss/deportes/",
-    ],
-    "Debate / Opinión": [
-        "https://www.clarin.com/rss/opinion/",
-    ],
+    "Sociedad": ["https://www.clarin.com/rss/sociedad/"],
+    "Internacional": ["https://www.clarin.com/rss/mundo/"],
+    "Entretenimiento": ["https://www.clarin.com/rss/espectaculos/", "http://cadena3.com/rss/Espectaculos.xml"],
+    "Deportes": ["https://www.clarin.com/rss/deportes/", "http://cadena3.com/rss/Deportes.xml"],
+    "Debate / Opinión": ["https://www.clarin.com/rss/opinion/"],
+    "Defensa / Seguridad": ["https://www.clarin.com/rss/policiales/"],
 }
 
-# Función para traer noticias
-@st.cache_data(ttl=600)  # Cache 10 minutos para no saturar
-def obtener_noticias(categorias_activas, fecha_desde, fecha_hasta):
-    noticias = []
-    for cat in categorias_activas:
+@st.cache_data(ttl=300)
+def obtener_noticias(cats, desde, hasta, provincia=None):
+    lista = []
+    palabras_graves = ["urgente", "último momento", "ultimo momento", "alerta", "grave", "tragedia", "muerte", "accidente mortal"]
+    
+    for cat in cats:
         if cat in feeds:
             for url in feeds[cat]:
                 try:
                     feed = feedparser.parse(url)
-                    for entry in feed.entries[:8]:  # máximo 8 por feed
-                        # Intentamos obtener la fecha
+                    for entry in feed.entries[:10]:
                         try:
-                            fecha_noticia = datetime(*entry.published_parsed[:6]).date()
+                            f = datetime(*entry.published_parsed[:6]).date()
                         except:
-                            fecha_noticia = datetime.now().date()
+                            f = datetime.now().date()
+                        
+                        if not (desde <= f <= hasta):
+                            continue
+                        
+                        titulo = entry.title
+                        # Filtro por provincia
+                        if provincia and provincia.lower() not in titulo.lower():
+                            continue
+                        
+                        es_grave = any(p in titulo.lower() for p in palabras_graves)
+                        
+                        lista.append({
+                            "titulo": titulo,
+                            "link": entry.link,
+                            "medio": feed.feed.get("title", "Medio")[:40],
+                            "categoria": cat,
+                            "fecha": f,
+                            "grave": es_grave
+                        })
+                except:
+                    pass
+    return lista
 
-                        if fecha_desde <= fecha_noticia <= fecha_hasta:
-                            noticias.append({
-                                "titulo": entry.title,
-                                "link": entry.link,
-                                "medio": feed.feed.get("title", "Medio"),
-                                "categoria": cat,
-                                "fecha": fecha_noticia
-                            })
-                except Exception as e:
-                    st.warning(f"No se pudo cargar un feed de {cat}")
-    return noticias
-
-# Traer y mostrar
 with st.spinner("Cargando noticias..."):
-    noticias = obtener_noticias(categorias_activas, fecha_desde, fecha_hasta)
+    noticias = obtener_noticias(categorias_activas, fecha_desde, fecha_hasta, provincia_seleccionada)
 
 if noticias:
-    # Ordenar por fecha más reciente
     noticias = sorted(noticias, key=lambda x: x["fecha"], reverse=True)
-
     for n in noticias:
-        st.markdown(f"""
-        *{n['titulo']}*  
-        📌 {n['medio']} · {n['categoria']} · {n['fecha']}  
-        [Leer noticia →]({n['link']})
-        """)
-        st.markdown("---")
+        if n["grave"]:
+            st.markdown(f"""
+            <div style="background:#fff0f0; padding:10px; border-left:5px solid red; margin-bottom:10px;">
+                <span style="color:red; font-weight:bold; font-size:18px;">⚠️ ¡ÚLTIMO MOMENTO!</span><br>
+                <span style="color:red; font-size:16px;"><b>{n['titulo']}</b></span><br>
+                <small>{n['medio']} · {n['categoria']} · {n['fecha']}</small><br>
+                <a href="{n['link']}" target="_blank">Leer noticia →</a>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"*{n['titulo']}*  \n*{n['medio']}* · {n['categoria']} · {n['fecha']}  \n[Leer →]({n['link']})")
+            st.markdown("---")
 else:
-    st.info("No se encontraron noticias con los filtros y fechas seleccionados. Probá ampliar el rango de fechas o activar más categorías.")
+    st.info("No se encontraron noticias con esos filtros. Probá ampliar fechas o quitar el filtro de provincia.")
 
-# ========== ZÓCALO DE PUBLICIDAD ==========
+# ========== ZÓCALO ==========
 st.markdown("""
 <style>
 .banner-ads {
     position: fixed;
     bottom: 0;
     left: 0;
-    width: 100%;
-    height: 65px;
-    background-color: #f8f9fa;
-    border-top: 1px solid #dee2e6;
+    right: 0;
+    height: 55px;
+    background: #ffffff;
+    border-top: 2px solid #0d6efd;
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 99999;
     font-size: 14px;
-    color: #6c757d;
-    box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
-}
-</style>
-<div class="banner-ads">
-    📢 Espacio publicitario (aquí irá AdSense u otra red de ads • no interrumpe la lectura)
-</div>
-<div style="height: 75px;"></div>
-""", unsafe_allow_html=True)
+    box-shadow: 0 -2
