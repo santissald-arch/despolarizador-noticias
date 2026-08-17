@@ -121,12 +121,48 @@ def sol_de_mayo_svg(size=48, color="#EFA400", borde="#B8860B"):
         <circle cx="50" cy="50" r="23" fill="{color}" stroke="{borde}" stroke-width="2"/>
     </svg>'''
 
+_DIAS_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+_MESES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+             "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+
+def _fecha_larga_es(dt) -> str:
+    return f"{_DIAS_ES[dt.weekday()]} {dt.day} de {_MESES_ES[dt.month - 1]} de {dt.year}"
+
 st.markdown(f"""
-<div style="display:flex;align-items:center;gap:14px;margin-bottom:4px;">
-    {sol_de_mayo_svg(46)}
-    <h1 style="margin:0;">Noticias de Argentina</h1>
+<div style="background:linear-gradient(120deg,#0B2E4F 0%,#1B4F91 55%,#2F8FB0 100%);
+            border-radius:12px;padding:22px 28px;margin-bottom:8px;
+            display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;
+            box-shadow:0 6px 18px rgba(11,46,79,.25);">
+    <div style="display:flex;align-items:center;gap:16px;">
+        {sol_de_mayo_svg(52)}
+        <div>
+            <div style="font-family:'Playfair Display',serif;font-size:32px;font-weight:800;color:#fff;line-height:1.05;">
+                Noticias de Argentina
+            </div>
+            <div style="font-size:12px;color:#cfe0f2;letter-spacing:.8px;margin-top:5px;font-weight:600;">
+                INFORMACIÓN AL INSTANTE · LAS 24 HORAS
+            </div>
+        </div>
+    </div>
+    <div style="text-align:right;">
+        <div style="display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.16);
+                    padding:5px 14px;border-radius:999px;margin-bottom:7px;">
+            <span style="width:8px;height:8px;background:#FF4D4D;border-radius:50%;display:inline-block;
+                        animation:pulso-vivo 1.3s ease-in-out infinite;"></span>
+            <span style="color:#fff;font-size:11px;font-weight:800;letter-spacing:.6px;">EN VIVO</span>
+        </div>
+        <div style="color:#e8f1fb;font-size:13px;text-transform:capitalize;">{_fecha_larga_es(datetime.now())}</div>
+    </div>
 </div>
+<style>
+@keyframes pulso-vivo {{
+    0% {{ opacity:1; transform:scale(1); }}
+    50% {{ opacity:.35; transform:scale(1.3); }}
+    100% {{ opacity:1; transform:scale(1); }}
+}}
+</style>
 """, unsafe_allow_html=True)
+
 
 # ========== LOGOS / COLORES DE MEDIOS ==========
 LOGOS = {
@@ -929,36 +965,58 @@ else:
 st.markdown("---")
 
 # ========== TABLA DEL TORNEO AFA + NOTICIA DEL TORNEO ==========
-@st.cache_data(ttl=1800)
+def _buscar_entries_tabla(obj):
+    """Busca recursivamente una lista de 'entries' de equipos dentro del JSON, sin asumir una estructura fija."""
+    if isinstance(obj, dict):
+        entries = obj.get("entries")
+        if isinstance(entries, list) and entries and isinstance(entries[0], dict) and "team" in entries[0]:
+            return entries
+        for v in obj.values():
+            resultado = _buscar_entries_tabla(v)
+            if resultado:
+                return resultado
+    elif isinstance(obj, list):
+        for item in obj:
+            resultado = _buscar_entries_tabla(item)
+            if resultado:
+                return resultado
+    return None
+
+@st.cache_data(ttl=900)
 def obtener_tabla_afa():
-    try:
-        url = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; NoticiasApp/1.0)"}
-        r = requests.get(url, headers=headers, timeout=8)
-        data = r.json()
-        entries = None
-        if isinstance(data.get("standings"), dict):
-            entries = data["standings"].get("entries")
-        if not entries and data.get("children"):
-            entries = data["children"][0]["standings"]["entries"]
-        if not entries:
-            return None
-        tabla = []
-        for e in entries:
-            equipo = e.get("team", {}).get("displayName", "—")
-            stats = {s.get("name"): s.get("value") for s in e.get("stats", [])}
-            tabla.append({
-                "equipo": equipo,
-                "pj": stats.get("gamesPlayed"),
-                "pg": stats.get("wins"),
-                "pe": stats.get("ties"),
-                "pp": stats.get("losses"),
-                "pts": stats.get("points"),
-            })
-        tabla.sort(key=lambda x: (-(x["pts"]) if x["pts"] is not None else 0))
-        return tabla
-    except Exception:
-        return None
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; NoticiasApp/1.0)"}
+    urls = [
+        "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings",
+        "https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/standings",
+        "https://site.web.api.espn.com/apis/v2/sports/soccer/arg.1/standings",
+    ]
+    for url in urls:
+        try:
+            r = requests.get(url, headers=headers, timeout=8)
+            if r.status_code != 200:
+                continue
+            data = r.json()
+            entries = _buscar_entries_tabla(data)
+            if not entries:
+                continue
+            tabla = []
+            for e in entries:
+                equipo = e.get("team", {}).get("displayName") or e.get("team", {}).get("name") or "—"
+                stats = {s.get("name"): s.get("value") for s in e.get("stats", []) if isinstance(s, dict)}
+                tabla.append({
+                    "equipo": equipo,
+                    "pj": stats.get("gamesPlayed"),
+                    "pg": stats.get("wins"),
+                    "pe": stats.get("ties"),
+                    "pp": stats.get("losses"),
+                    "pts": stats.get("points"),
+                })
+            if tabla:
+                tabla.sort(key=lambda x: (x["pts"] if x["pts"] is not None else -1), reverse=True)
+                return tabla
+        except Exception:
+            continue
+    return None
 
 @st.cache_data(ttl=600)
 def obtener_noticia_torneo():
@@ -1008,7 +1066,7 @@ with col_tabla:
         </div>
         """, unsafe_allow_html=True)
     else:
-        st.info("No se pudo cargar la tabla del torneo en este momento.")
+        st.info("No se pudo cargar la tabla del torneo en este momento. Podés verla directamente en [ESPN](https://www.espn.com.ar/futbol/posiciones/_/liga/arg.1) o en [afa.com.ar](https://www.afa.com.ar).")
     st.caption("Fuente: ESPN. Para la tabla oficial, consultá afa.com.ar.")
 
 with col_noticia_torneo:
