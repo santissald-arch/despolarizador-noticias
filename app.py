@@ -398,60 +398,49 @@ def obtener_riesgo_pais():
     except Exception:
         return None
 
-def _chip_indicador(nombre, valor_html, sub=None):
-    sub_html = f'<div style="font-size:10px;color:#888;margin-top:1px;">{sub}</div>' if sub else ""
-    return f"""
-    <div style="background:white;border:1px solid #e5e2db;border-radius:6px;padding:8px 14px;min-width:150px;flex:1;">
-        <div style="font-size:10px;color:#666;font-weight:700;letter-spacing:.4px;">{nombre}</div>
-        <div style="font-size:17px;font-weight:700;color:#111;">{valor_html}</div>
-        {sub_html}
-    </div>"""
-
 # ========== INDICADORES ECONÓMICOS (arriba del mapa) ==========
 st.subheader("Panorama económico")
 st.caption("Dólar, riesgo país, energía y agro — solo valor")
 
-_chips = []
+INDICADORES = []
 
 blue = obtener_dolar("blue")
-if blue:
-    _chips.append(_chip_indicador("DÓLAR BLUE", f'${blue["venta"]:.0f}'))
-else:
-    _chips.append(_chip_indicador("DÓLAR BLUE", "sin datos"))
+INDICADORES.append(("Dólar Blue", f'${blue["venta"]:.0f}' if blue else "sin datos"))
 
 oficial = obtener_dolar("oficial")
-if oficial:
-    _chips.append(_chip_indicador("DÓLAR OFICIAL", f'${oficial["venta"]:.0f}'))
-else:
-    _chips.append(_chip_indicador("DÓLAR OFICIAL", "sin datos"))
+INDICADORES.append(("Dólar Oficial", f'${oficial["venta"]:.0f}' if oficial else "sin datos"))
 
 riesgo = obtener_riesgo_pais()
-if riesgo is not None:
-    _chips.append(_chip_indicador("RIESGO PAÍS", f'{riesgo:,.0f} pb'))
-else:
-    _chips.append(_chip_indicador("RIESGO PAÍS", "sin datos"))
+INDICADORES.append(("Riesgo País", f'{riesgo:,.0f} pb' if riesgo is not None else "sin datos"))
 
 COMMODITIES = [
-    ("PETRÓLEO WTI", "CL=F", "u$s/barril"),
-    ("PETRÓLEO BRENT", "BZ=F", "u$s/barril"),
-    ("GAS NATURAL", "NG=F", "u$s/MMBtu"),
-    ("ORO", "GC=F", "u$s/oz"),
-    ("PLATA", "SI=F", "u$s/oz"),
-    ("LITIO (ETF LIT)", "LIT", "proxy, u$s"),
-    ("SOJA", "ZS=F", "u$s/bushel"),
-    ("MAÍZ", "ZC=F", "u$s/bushel"),
-    ("TRIGO", "ZW=F", "u$s/bushel"),
+    ("Petróleo WTI", "CL=F"),
+    ("Petróleo Brent", "BZ=F"),
+    ("Gas Natural", "NG=F"),
+    ("Oro", "GC=F"),
+    ("Plata", "SI=F"),
+    ("Litio (ETF LIT)", "LIT"),
+    ("Soja", "ZS=F"),
+    ("Maíz", "ZC=F"),
+    ("Trigo", "ZW=F"),
 ]
 
-for nombre, symbol, unidad in COMMODITIES:
+for nombre, symbol in COMMODITIES:
     resultado = obtener_precio_yahoo(symbol)
     if resultado:
         precio, _cambio = resultado
-        _chips.append(_chip_indicador(nombre, f'{precio:,.2f}', unidad))
+        INDICADORES.append((nombre, f'{precio:,.2f}'))
     else:
-        _chips.append(_chip_indicador(nombre, "sin datos"))
+        INDICADORES.append((nombre, "sin datos"))
 
-st.markdown(f'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;">{"".join(_chips)}</div>', unsafe_allow_html=True)
+COLS_POR_FILA = 4
+for i in range(0, len(INDICADORES), COLS_POR_FILA):
+    fila = INDICADORES[i:i + COLS_POR_FILA]
+    cols_ind = st.columns(COLS_POR_FILA)
+    for col, (nombre, valor) in zip(cols_ind, fila):
+        with col:
+            st.metric(nombre, valor)
+
 st.caption("Fuentes: DolarAPI, ArgentinaDatos y Yahoo Finance. El litio no tiene un futuro cotizado de acceso público masivo, por eso se aproxima con el ETF LIT (Global X Lithium & Battery Tech).")
 
 st.markdown("---")
