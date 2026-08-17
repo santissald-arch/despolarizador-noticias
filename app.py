@@ -398,20 +398,38 @@ def obtener_riesgo_pais():
     except Exception:
         return None
 
-# ========== INDICADORES ECONÓMICOS (arriba del mapa) ==========
+# ========== INDICADORES ECONÓMICOS: TICKER ANIMADO (arriba del mapa) ==========
 st.subheader("Panorama económico")
-st.caption("Dólar, riesgo país, energía y agro — solo valor")
 
-INDICADORES = []
+_PALETA_TICKER = ["#1B6E8C", "#B8860B", "#8B0000", "#2E7D32", "#6A4C93", "#C25E00"]
+
+def _pill_ticker(nombre: str, valor: str, en_dolares: bool, color: str) -> str:
+    sufijo = ' <span style="font-size:10px;font-weight:600;opacity:.85;">USD</span>' if en_dolares else ""
+    return (
+        f'<span style="display:inline-flex;align-items:baseline;gap:6px;background:{color};'
+        f'color:#fff;padding:8px 18px;border-radius:999px;margin:0 8px;white-space:nowrap;'
+        f'font-family:Inter,sans-serif;box-shadow:0 2px 5px rgba(0,0,0,.15);">'
+        f'<span style="font-size:11px;font-weight:700;letter-spacing:.4px;opacity:.9;">{nombre.upper()}</span>'
+        f'<span style="font-size:16px;font-weight:800;">{valor}</span>{sufijo}</span>'
+    )
+
+_items_ticker = []
+_i_color = 0
+
+def _next_color():
+    global _i_color
+    c = _PALETA_TICKER[_i_color % len(_PALETA_TICKER)]
+    _i_color += 1
+    return c
 
 blue = obtener_dolar("blue")
-INDICADORES.append(("Dólar Blue", f'${blue["venta"]:.0f}' if blue else "sin datos"))
+_items_ticker.append(_pill_ticker("Dólar Blue", f'${blue["venta"]:.0f}' if blue else "sin datos", False, _next_color()))
 
 oficial = obtener_dolar("oficial")
-INDICADORES.append(("Dólar Oficial", f'${oficial["venta"]:.0f}' if oficial else "sin datos"))
+_items_ticker.append(_pill_ticker("Dólar Oficial", f'${oficial["venta"]:.0f}' if oficial else "sin datos", False, _next_color()))
 
 riesgo = obtener_riesgo_pais()
-INDICADORES.append(("Riesgo País", f'{riesgo:,.0f} pb' if riesgo is not None else "sin datos"))
+_items_ticker.append(_pill_ticker("Riesgo País", f'{riesgo:,.0f} pb' if riesgo is not None else "sin datos", False, _next_color()))
 
 COMMODITIES = [
     ("Petróleo WTI", "CL=F"),
@@ -429,17 +447,25 @@ for nombre, symbol in COMMODITIES:
     resultado = obtener_precio_yahoo(symbol)
     if resultado:
         precio, _cambio = resultado
-        INDICADORES.append((nombre, f'{precio:,.2f}'))
+        _items_ticker.append(_pill_ticker(nombre, f'{precio:,.2f}', True, _next_color()))
     else:
-        INDICADORES.append((nombre, "sin datos"))
+        _items_ticker.append(_pill_ticker(nombre, "sin datos", False, _next_color()))
 
-COLS_POR_FILA = 4
-for i in range(0, len(INDICADORES), COLS_POR_FILA):
-    fila = INDICADORES[i:i + COLS_POR_FILA]
-    cols_ind = st.columns(COLS_POR_FILA)
-    for col, (nombre, valor) in zip(cols_ind, fila):
-        with col:
-            st.metric(nombre, valor)
+_pista = "".join(_items_ticker)
+st.markdown(f"""
+<div style="background:linear-gradient(90deg,#fffaf0,#fff);border:1px solid #e5e2db;border-radius:10px;
+            padding:12px 0;overflow:hidden;margin-bottom:6px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+    <div style="display:inline-block;white-space:nowrap;animation:ticker-economico 38s linear infinite;">
+        {_pista}{_pista}
+    </div>
+</div>
+<style>
+@keyframes ticker-economico {{
+    0% {{ transform: translateX(0); }}
+    100% {{ transform: translateX(-50%); }}
+}}
+</style>
+""", unsafe_allow_html=True)
 
 st.caption("Fuentes: DolarAPI, ArgentinaDatos y Yahoo Finance. El litio no tiene un futuro cotizado de acceso público masivo, por eso se aproxima con el ETF LIT (Global X Lithium & Battery Tech).")
 
