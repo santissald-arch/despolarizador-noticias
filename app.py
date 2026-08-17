@@ -8,6 +8,7 @@ import re
 import unicodedata
 import hashlib
 import json
+import urllib.parse
 
 st.set_page_config(
     page_title="Noticias de Argentina",
@@ -209,16 +210,28 @@ def chip_medio(nombre: str) -> str:
             f'letter-spacing:.5px;box-shadow:0 2px 4px rgba(0,0,0,.20);font-family:Inter,sans-serif;">'
             f'{nombre.upper()}</span>')
 
+def boton_whatsapp(titulo: str, link: str) -> str:
+    texto = urllib.parse.quote(f"{titulo} {link}")
+    url_wa = f"https://wa.me/?text={texto}"
+    return (
+        f'<a href="{url_wa}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;'
+        f'background:#25D366;color:#fff!important;padding:4px 10px;border-radius:999px;'
+        f'font-size:11px;font-weight:700;text-decoration:none;margin-top:8px;">'
+        f'<svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M17.6 6.3A8.9 8.9 0 0 0 3.6 17l-1.1 4 4.1-1.1A9 9 0 1 0 17.6 6.3zM12 19.5a7.4 7.4 0 0 1-3.8-1l-.3-.2-2.5.7.7-2.4-.2-.3a7.5 7.5 0 1 1 6.1 3.2zm4.1-5.6c-.2-.1-1.3-.6-1.5-.7-.2-.1-.4-.1-.5.1l-.7.9c-.1.2-.3.2-.5.1a6.1 6.1 0 0 1-3-2.6c-.2-.3.2-.3.5-.9.1-.1.1-.3 0-.4l-.7-1.6c-.2-.4-.4-.4-.5-.4h-.5c-.2 0-.4.1-.6.3-.2.2-.8.8-.8 2s.8 2.3 1 2.5c.1.1 1.7 2.6 4.1 3.6.6.2 1 .4 1.4.5.6.2 1.1.1 1.5.1.5-.1 1.3-.5 1.5-1 .2-.5.2-.9.1-1z"/></svg>'
+        f'Compartir</a>'
+    )
+
 # ========== BANNER ==========
 @st.cache_data(ttl=300)
 def obtener_titulares_infobae():
     try:
         feed = feedparser.parse("https://www.infobae.com/arc/outboundfeeds/rss/")
-        return [e.title for e in feed.entries[:7]]
-    except:
-        return ["Cargando titulares..."]
+        return [{"titulo": e.title, "link": e.link} for e in feed.entries[:7]]
+    except Exception:
+        return [{"titulo": "Cargando titulares...", "link": "https://www.infobae.com"}]
 
-texto_banner = "  •  ".join(obtener_titulares_infobae())
+_titulares_infobae = obtener_titulares_infobae()
+texto_banner = "  •  ".join(t["titulo"] for t in _titulares_infobae)
 st.markdown(f"""
 <div style="background:#111; color:#f5f0e6; padding:9px 0; font-size:13px; overflow:hidden; white-space:nowrap;">
     <div style="display:inline-block; padding-left:100%; animation: marquee 42s linear infinite;">
@@ -230,17 +243,25 @@ st.markdown(f"""
 
 st.markdown("---")
 
-# ========== FECHAS ==========
-c1, c2, c3 = st.columns([2, 2, 1])
-with c1:
-    fecha_desde = st.date_input("Desde", value=datetime.now().date() - timedelta(days=2))
-with c2:
-    fecha_hasta = st.date_input("Hasta", value=datetime.now().date())
-with c3:
-    if st.button("Actualizar", use_container_width=True):
-        st.rerun()
+# ========== LO MÁS LEÍDO (sidebar) ==========
+st.sidebar.markdown("---")
+st.sidebar.header("🔥 Tendencias ahora")
+for i, t in enumerate(_titulares_infobae[:6], start=1):
+    st.sidebar.markdown(
+        f'<div style="font-size:12px;margin-bottom:8px;line-height:1.35;">'
+        f'<b style="color:#B8860B;">{i}.</b> '
+        f'<a href="{t["link"]}" target="_blank" style="color:#1a1a1a!important;text-decoration:none;">{t["titulo"]}</a>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+
+# ========== RANGO DE FECHAS (fijo, sin selector visible) ==========
+fecha_desde = datetime.now().date() - timedelta(days=3)
+fecha_hasta = datetime.now().date()
 
 # ========== SIDEBAR ==========
+if st.sidebar.button("🔄 Actualizar", use_container_width=True):
+    st.rerun()
 st.sidebar.header("Categorías")
 categorias = {
     "Política": st.sidebar.checkbox("Política", True),
@@ -507,6 +528,41 @@ st.caption("Fuentes: DolarAPI, ArgentinaDatos y Yahoo Finance. El litio no tiene
 
 st.markdown("---")
 
+# ========== HERRAMIENTAS: COTIZADOR Y CALCULADORA ==========
+st.subheader("Herramientas")
+col_cotizador, col_calculadora = st.columns(2)
+
+with col_cotizador:
+    st.markdown("**Cotizador de dólar**")
+    tipo_dolar = st.radio("Cotización", ["Blue", "Oficial"], horizontal=True, key="tipo_dolar")
+    valor_dolar = blue["venta"] if (tipo_dolar == "Blue" and blue) else (oficial["venta"] if oficial else None)
+    if valor_dolar:
+        col_monto, col_direccion = st.columns([1.3, 1])
+        with col_direccion:
+            direccion = st.selectbox("Convertir", ["ARS → USD", "USD → ARS"], key="direccion_dolar")
+        with col_monto:
+            monto = st.number_input("Monto", min_value=0.0, value=1000.0, step=100.0, key="monto_dolar")
+        if direccion == "ARS → USD":
+            resultado_conv = monto / valor_dolar
+            st.success(f"${monto:,.0f} ARS = USD {resultado_conv:,.2f} (dólar {tipo_dolar.lower()} a ${valor_dolar:,.0f})")
+        else:
+            resultado_conv = monto * valor_dolar
+            st.success(f"USD {monto:,.0f} = ${resultado_conv:,.2f} ARS (dólar {tipo_dolar.lower()} a ${valor_dolar:,.0f})")
+    else:
+        st.info("No se pudo obtener la cotización en este momento.")
+
+with col_calculadora:
+    st.markdown("**Calculadora de sueldo y aguinaldo**")
+    sueldo_bruto = st.number_input("Mejor sueldo bruto del semestre ($)", min_value=0.0, value=1000000.0, step=10000.0, key="sueldo_bruto")
+    aguinaldo = sueldo_bruto / 2
+    descuentos = sueldo_bruto * 0.17  # jubilación 11% + obra social 3% + PAMI 3%, aprox.
+    sueldo_neto_aprox = sueldo_bruto - descuentos
+    st.write(f"**Aguinaldo (SAC) estimado:** ${aguinaldo:,.0f}")
+    st.write(f"**Sueldo neto aproximado:** ${sueldo_neto_aprox:,.0f}")
+    st.caption("Estimación con descuentos típicos en relación de dependencia (jubilación 11% + obra social 3% + PAMI 3% ≈ 17%). Puede variar según convenio, sindicato y otros descuentos.")
+
+st.markdown("---")
+
 # ========== MAPA + BOLSA ==========
 col_mapa, col_bolsa = st.columns([1.45, 1])
 
@@ -763,6 +819,92 @@ st.markdown(
 
 st.markdown("---")
 
+# ========== SERVICIOS: HORÓSCOPO, QUINIELA Y TRÁNSITO ==========
+_SIGNOS = [
+    ("Aries", "♈"), ("Tauro", "♉"), ("Géminis", "♊"), ("Cáncer", "♋"),
+    ("Leo", "♌"), ("Virgo", "♍"), ("Libra", "♎"), ("Escorpio", "♏"),
+    ("Sagitario", "♐"), ("Capricornio", "♑"), ("Acuario", "♒"), ("Piscis", "♓"),
+]
+_MENSAJES_HOROSCOPO = [
+    "Buen momento para tomar decisiones que veías postergando. La energía está de tu lado.",
+    "Cuidá los vínculos cercanos: una charla pendiente puede destrabar una tensión.",
+    "El trabajo pide foco. Ordená prioridades antes de sumar cosas nuevas.",
+    "Un imprevisto económico te obliga a replantear gastos. Nada grave si lo mirás a tiempo.",
+    "La energía está alta: aprovechá para avanzar en lo que venías dejando para después.",
+    "Momento de escuchar más que hablar. Las respuestas pueden venir de donde menos lo esperás.",
+    "Se abre una oportunidad laboral o de estudio. Prestá atención a los detalles.",
+    "La salud pide un poco de descanso. No te sobre-exijas hoy.",
+    "Buen día para lo social: encuentros y conversaciones que suman.",
+    "Evitá discusiones por temas de dinero compartido. Mejor hablarlo con calma.",
+    "Se favorece todo lo creativo. Si tenés una idea dando vueltas, es momento de anotarla.",
+    "La intuición está afilada: confiá en tu primera impresión sobre una decisión pendiente.",
+]
+
+def _horoscopo_del_dia(indice_signo: int) -> str:
+    dia_del_anio = datetime.now().timetuple().tm_yday
+    return _MENSAJES_HOROSCOPO[(dia_del_anio + indice_signo) % len(_MENSAJES_HOROSCOPO)]
+
+@st.cache_data(ttl=1800)
+def obtener_noticias_transito():
+    try:
+        url = "https://news.google.com/rss/search?q=cortes+de+ruta+OR+tr%C3%A1nsito+Buenos+Aires&hl=es-419&gl=AR&ceid=AR:es-419"
+        feed = feedparser.parse(url)
+        notas = []
+        for entry in feed.entries[:4]:
+            titulo = entry.title
+            if " - " in titulo:
+                titulo = titulo.rsplit(" - ", 1)[0]
+            notas.append({"titulo": titulo, "link": entry.link})
+        return notas
+    except Exception:
+        return []
+
+col_horoscopo, col_quiniela, col_transito = st.columns(3)
+
+with col_horoscopo:
+    st.subheader("Horóscopo del día")
+    signo_elegido = st.selectbox("Tu signo", [s[0] for s in _SIGNOS], key="signo_horoscopo")
+    idx_signo = [s[0] for s in _SIGNOS].index(signo_elegido)
+    simbolo = _SIGNOS[idx_signo][1]
+    st.markdown(f"""
+    <div class="noticia-card">
+        <div style="font-size:32px;text-align:center;">{simbolo}</div>
+        <div style="font-size:13px;color:#333;text-align:center;margin-top:6px;line-height:1.4;">
+            {_horoscopo_del_dia(idx_signo)}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_quiniela:
+    st.subheader("Quiniela y sorteos")
+    st.markdown("""
+    <div class="noticia-card">
+        <div style="font-size:13px;color:#333;line-height:1.5;">
+            Los resultados de Quiniela Nacional, Provincia, Loto y Brinco cambian varias veces al día,
+            así que para el número exacto y actualizado te conviene ir a la fuente oficial.
+        </div>
+        <div style="margin-top:10px;">
+            <a href="https://www.loteria.gov.ar" target="_blank">Loteria Nacional →</a><br>
+            <a href="https://www.loteriadebuenosaires.gob.ar" target="_blank">Lotería de Buenos Aires →</a>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_transito:
+    st.subheader("Tránsito y rutas")
+    noticias_transito = obtener_noticias_transito()
+    if noticias_transito:
+        for nt in noticias_transito:
+            st.markdown(f"""
+            <div class="noticia-card" style="padding:10px 12px;margin-bottom:8px;">
+                <a href="{nt['link']}" target="_blank" style="font-size:12px;color:#111!important;line-height:1.3;">{nt['titulo']}</a>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.info("No se encontraron novedades de tránsito en este momento.")
+
+st.markdown("---")
+
 # ========== NOTICIAS DE LA PROVINCIA SELECCIONADA ==========
 if provincia_seleccionada and not st.session_state.get("ocultar_provincia", False):
     medios_provincia = buscar_medios_provincia(provincia_seleccionada)
@@ -795,6 +937,7 @@ if provincia_seleccionada and not st.session_state.get("ocultar_provincia", Fals
                                     line-height:1.35;margin-top:8px;">
                             <a href="{n['link']}" target="_blank" style="color:#111!important;">{n['titulo']}</a>
                         </div>
+                        {boton_whatsapp(n['titulo'], n['link'])}
                     </div>
                     """, unsafe_allow_html=True)
         else:
@@ -904,7 +1047,8 @@ with col_a:
         <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;line-height:1.3;margin:12px 0;color:#111;">
             {n_infobae['titulo']}
         </div>
-        <a href="{n_infobae['link']}" target="_blank">Leer en Infobae →</a>
+        <a href="{n_infobae['link']}" target="_blank">Leer en Infobae →</a><br>
+        {boton_whatsapp(n_infobae['titulo'], n_infobae['link'])}
         </div>
         """, unsafe_allow_html=True)
     else:
@@ -957,10 +1101,51 @@ if notas_opinion:
                             line-height:1.35;margin-top:8px;">
                     <a href="{nota['link']}" target="_blank" style="color:#111!important;">{nota['titulo']}</a>
                 </div>
+                {boton_whatsapp(nota['titulo'], nota['link'])}
             </div>
             """, unsafe_allow_html=True)
 else:
     st.info("No se encontraron columnas de opinión en este momento.")
+
+st.markdown("---")
+
+# ========== PARA ENTENDER MEJOR (EXPLICADORES) ==========
+@st.cache_data(ttl=1800)
+def obtener_explicadores():
+    try:
+        url = ("https://news.google.com/rss/search?q=%22qu%C3%A9%20significa%22+OR+%22te%20lo%20explicamos%22"
+               "+Argentina&hl=es-419&gl=AR&ceid=AR:es-419")
+        feed = feedparser.parse(url)
+        notas = []
+        for entry in feed.entries[:3]:
+            titulo = entry.title
+            medio = "Medio"
+            if " - " in titulo:
+                titulo, medio = titulo.rsplit(" - ", 1)
+            notas.append({"titulo": titulo, "link": entry.link, "medio": medio})
+        return notas
+    except Exception:
+        return []
+
+st.subheader("Para entender mejor")
+st.caption("Notas explicativas sobre los temas del momento")
+notas_explicador = obtener_explicadores()
+if notas_explicador:
+    cols_explicador = st.columns(len(notas_explicador))
+    for i, nota in enumerate(notas_explicador):
+        with cols_explicador[i]:
+            st.markdown(f"""
+            <div class="noticia-card">
+                {chip_medio(nota['medio'])}
+                <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:600;
+                            line-height:1.35;margin-top:8px;">
+                    <a href="{nota['link']}" target="_blank" style="color:#111!important;">{nota['titulo']}</a>
+                </div>
+                {boton_whatsapp(nota['titulo'], nota['link'])}
+            </div>
+            """, unsafe_allow_html=True)
+else:
+    st.info("No se encontraron notas explicativas en este momento.")
 
 st.markdown("---")
 
@@ -1084,6 +1269,7 @@ with col_noticia_torneo:
                     line-height:1.35;margin-top:8px;">
             <a href="{noticia_torneo['link']}" target="_blank" style="color:#111!important;">{noticia_torneo['titulo']}</a>
         </div>
+        {boton_whatsapp(noticia_torneo['titulo'], noticia_torneo['link'])}
         </div>
         """, unsafe_allow_html=True)
     else:
@@ -1220,7 +1406,8 @@ if noticias:
             <div style="font-family:'Playfair Display',serif;font-size:24px;font-weight:700;line-height:1.25;margin-bottom:10px;color:#111;">
                 {n['titulo']}
             </div>
-            <a href="{n['link']}" target="_blank">Leer nota completa →</a>
+            <a href="{n['link']}" target="_blank">Leer nota completa →</a><br>
+            {boton_whatsapp(n['titulo'], n['link'])}
             """, unsafe_allow_html=True)
 
         st.markdown("---")
@@ -1244,6 +1431,7 @@ if noticias:
                         <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:600;line-height:1.3;">
                             <a href="{n['link']}" target="_blank" style="color:#111!important;">{n['titulo']}</a>
                         </div>
+                        {boton_whatsapp(n['titulo'], n['link'])}
                         """, unsafe_allow_html=True)
                     st.markdown('</div>', unsafe_allow_html=True)
 
