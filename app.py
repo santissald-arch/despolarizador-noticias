@@ -409,21 +409,19 @@ def _chip_indicador(nombre, valor_html, sub=None):
 
 # ========== INDICADORES ECONÓMICOS (arriba del mapa) ==========
 st.subheader("Panorama económico")
-st.caption("Dólar, riesgo país, energía, minería y agro")
+st.caption("Dólar, riesgo país, energía y agro — solo valor")
 
 _chips = []
 
 blue = obtener_dolar("blue")
 if blue:
-    sub = f'compra ${blue["compra"]:.0f}' if blue.get("compra") else None
-    _chips.append(_chip_indicador("DÓLAR BLUE", f'${blue["venta"]:.0f}', sub))
+    _chips.append(_chip_indicador("DÓLAR BLUE", f'${blue["venta"]:.0f}'))
 else:
     _chips.append(_chip_indicador("DÓLAR BLUE", "sin datos"))
 
 oficial = obtener_dolar("oficial")
 if oficial:
-    sub = f'compra ${oficial["compra"]:.0f}' if oficial.get("compra") else None
-    _chips.append(_chip_indicador("DÓLAR OFICIAL", f'${oficial["venta"]:.0f}', sub))
+    _chips.append(_chip_indicador("DÓLAR OFICIAL", f'${oficial["venta"]:.0f}'))
 else:
     _chips.append(_chip_indicador("DÓLAR OFICIAL", "sin datos"))
 
@@ -436,6 +434,7 @@ else:
 COMMODITIES = [
     ("PETRÓLEO WTI", "CL=F", "u$s/barril"),
     ("PETRÓLEO BRENT", "BZ=F", "u$s/barril"),
+    ("GAS NATURAL", "NG=F", "u$s/MMBtu"),
     ("ORO", "GC=F", "u$s/oz"),
     ("PLATA", "SI=F", "u$s/oz"),
     ("LITIO (ETF LIT)", "LIT", "proxy, u$s"),
@@ -447,10 +446,8 @@ COMMODITIES = [
 for nombre, symbol, unidad in COMMODITIES:
     resultado = obtener_precio_yahoo(symbol)
     if resultado:
-        precio, cambio = resultado
-        color = "#14804A" if cambio >= 0 else "#C0392B"
-        sub = f'<span style="color:{color};font-weight:700;">{cambio:+.2f}%</span> · {unidad}'
-        _chips.append(_chip_indicador(nombre, f'{precio:,.2f}', sub))
+        precio, _cambio = resultado
+        _chips.append(_chip_indicador(nombre, f'{precio:,.2f}', unidad))
     else:
         _chips.append(_chip_indicador(nombre, "sin datos"))
 
@@ -693,19 +690,25 @@ st.caption("Este entorno no tiene acceso a APIs de redes sociales (X, Instagram,
 
 menciones = obtener_menciones_politicos()
 max_menciones = max([m for _, m in menciones] or [1]) or 1
-filas_term = ""
+min_menciones = min([m for _, m in menciones] or [0])
+rango = max(1, max_menciones - min_menciones)
+nombres_html = ""
 for nombre, count in menciones:
-    pct = (count / max_menciones * 100) if max_menciones else 0
-    filas_term += f"""
-    <div style="margin-bottom:8px;">
-        <div style="display:flex;justify-content:space-between;font-size:12px;color:#333;margin-bottom:3px;">
-            <span><b>{nombre}</b></span><span>{count} menciones</span>
-        </div>
-        <div style="background:#eee;border-radius:4px;height:10px;overflow:hidden;">
-            <div style="width:{pct:.1f}%;background:linear-gradient(90deg,#B8860B,#8B0000);height:100%;"></div>
-        </div>
-    </div>"""
-st.markdown(f'<div style="background:white;border:1px solid #e5e2db;border-radius:6px;padding:14px 16px;">{filas_term}</div>', unsafe_allow_html=True)
+    ratio = (count - min_menciones) / rango
+    tam = 16 + ratio * 34       # 16px a 50px
+    peso = 500 + int(ratio * 400)  # 500 a 900
+    opacidad = 0.5 + ratio * 0.5
+    nombres_html += (
+        f'<span title="{count} menciones" '
+        f'style="font-family:\'Playfair Display\',serif;font-size:{tam:.0f}px;'
+        f'font-weight:{peso};color:#8B0000;opacity:{opacidad:.2f};'
+        f'margin:6px 16px;display:inline-block;line-height:1.3;">{nombre}</span>'
+    )
+st.markdown(
+    f'<div style="background:white;border:1px solid #e5e2db;border-radius:6px;'
+    f'padding:26px 20px;text-align:center;">{nombres_html}</div>',
+    unsafe_allow_html=True
+)
 
 st.markdown("---")
 
@@ -867,6 +870,151 @@ with col_b:
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+st.markdown("---")
+
+# ========== COLUMNA DE OPINIÓN POLÍTICA ==========
+@st.cache_data(ttl=900)
+def obtener_columna_opinion():
+    try:
+        url = ("https://news.google.com/rss/search?q=(site:infobae.com/opinion+OR+"
+               "site:lanacion.com.ar/opinion+OR+site:clarin.com/opinion)&hl=es-419&gl=AR&ceid=AR:es-419")
+        feed = feedparser.parse(url)
+        notas = []
+        for entry in feed.entries[:3]:
+            titulo = entry.title
+            if " - " in titulo:
+                titulo, medio = titulo.rsplit(" - ", 1)
+            else:
+                medio = "Opinión"
+            notas.append({"titulo": titulo, "link": entry.link, "medio": medio})
+        return notas
+    except Exception:
+        return []
+
+st.subheader("Columna de opinión")
+st.caption("Análisis y columnas de opinión política de distintos medios")
+notas_opinion = obtener_columna_opinion()
+if notas_opinion:
+    cols_opinion = st.columns(len(notas_opinion))
+    for i, nota in enumerate(notas_opinion):
+        with cols_opinion[i]:
+            st.markdown(f"""
+            <div class="noticia-card">
+                {chip_medio(nota['medio'])}
+                <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:600;
+                            line-height:1.35;margin-top:8px;">
+                    <a href="{nota['link']}" target="_blank" style="color:#111!important;">{nota['titulo']}</a>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+else:
+    st.info("No se encontraron columnas de opinión en este momento.")
+
+st.markdown("---")
+
+# ========== TABLA DEL TORNEO AFA + NOTICIA DEL TORNEO ==========
+@st.cache_data(ttl=1800)
+def obtener_tabla_afa():
+    try:
+        url = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; NoticiasApp/1.0)"}
+        r = requests.get(url, headers=headers, timeout=8)
+        data = r.json()
+        entries = None
+        if isinstance(data.get("standings"), dict):
+            entries = data["standings"].get("entries")
+        if not entries and data.get("children"):
+            entries = data["children"][0]["standings"]["entries"]
+        if not entries:
+            return None
+        tabla = []
+        for e in entries:
+            equipo = e.get("team", {}).get("displayName", "—")
+            stats = {s.get("name"): s.get("value") for s in e.get("stats", [])}
+            tabla.append({
+                "equipo": equipo,
+                "pj": stats.get("gamesPlayed"),
+                "pg": stats.get("wins"),
+                "pe": stats.get("ties"),
+                "pp": stats.get("losses"),
+                "pts": stats.get("points"),
+            })
+        tabla.sort(key=lambda x: (-(x["pts"]) if x["pts"] is not None else 0))
+        return tabla
+    except Exception:
+        return None
+
+@st.cache_data(ttl=600)
+def obtener_noticia_torneo():
+    try:
+        url = "https://news.google.com/rss/search?q=Liga+Profesional+Argentina+AFA&hl=es-419&gl=AR&ceid=AR:es-419"
+        feed = feedparser.parse(url)
+        if not feed.entries:
+            return None
+        entry = feed.entries[0]
+        titulo = entry.title
+        medio = "Medio"
+        if " - " in titulo:
+            titulo, medio = titulo.rsplit(" - ", 1)
+        return {"titulo": titulo, "link": entry.link, "medio": medio, "imagen": extraer_imagen(entry)}
+    except Exception:
+        return None
+
+col_tabla, col_noticia_torneo = st.columns([1.5, 1])
+
+with col_tabla:
+    st.subheader("Tabla del torneo (AFA)")
+    tabla_afa = obtener_tabla_afa()
+    if tabla_afa:
+        filas_tabla = ""
+        for i, eq in enumerate(tabla_afa, start=1):
+            filas_tabla += f"""
+            <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:5px 6px;color:#888;">{i}</td>
+                <td style="padding:5px 6px;text-align:left;color:#111;">{eq['equipo']}</td>
+                <td style="padding:5px 6px;">{eq['pj'] if eq['pj'] is not None else '-'}</td>
+                <td style="padding:5px 6px;">{eq['pg'] if eq['pg'] is not None else '-'}</td>
+                <td style="padding:5px 6px;">{eq['pe'] if eq['pe'] is not None else '-'}</td>
+                <td style="padding:5px 6px;">{eq['pp'] if eq['pp'] is not None else '-'}</td>
+                <td style="padding:5px 6px;font-weight:700;color:#111;">{eq['pts'] if eq['pts'] is not None else '-'}</td>
+            </tr>"""
+        st.markdown(f"""
+        <div style="background:white;border:1px solid #e5e2db;border-radius:6px;padding:10px 12px;overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;">
+        <thead><tr style="border-bottom:2px solid #ddd;color:#666;">
+            <th style="padding:5px 6px;">#</th><th style="padding:5px 6px;text-align:left;">Equipo</th>
+            <th style="padding:5px 6px;">PJ</th><th style="padding:5px 6px;">PG</th>
+            <th style="padding:5px 6px;">PE</th><th style="padding:5px 6px;">PP</th>
+            <th style="padding:5px 6px;">Pts</th>
+        </tr></thead>
+        <tbody>{filas_tabla}</tbody>
+        </table>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.info("No se pudo cargar la tabla del torneo en este momento.")
+    st.caption("Fuente: ESPN. Para la tabla oficial, consultá afa.com.ar.")
+
+with col_noticia_torneo:
+    st.subheader("En el torneo")
+    noticia_torneo = obtener_noticia_torneo()
+    if noticia_torneo:
+        st.markdown('<div class="noticia-card">', unsafe_allow_html=True)
+        if noticia_torneo.get("imagen"):
+            st.image(noticia_torneo["imagen"], use_container_width=True)
+        else:
+            st.markdown(get_logo_html(noticia_torneo["medio"]), unsafe_allow_html=True)
+        st.markdown(f"""
+        {chip_medio(noticia_torneo['medio'])}
+        <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:600;
+                    line-height:1.35;margin-top:8px;">
+            <a href="{noticia_torneo['link']}" target="_blank" style="color:#111!important;">{noticia_torneo['titulo']}</a>
+        </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.info("No se encontraron noticias del torneo en este momento.")
 
 st.markdown("---")
 
@@ -1047,25 +1195,18 @@ st.markdown("---")
 st.caption("Espacios publicitarios")
 
 
-def _zocalo_publicidad(alto="90px"):
+def _zocalo_publicidad(alto="220px"):
     return f"""
     <div style="background:repeating-linear-gradient(45deg,#f0ede6,#f0ede6 10px,#e8e4da 10px,#e8e4da 20px);
                 border:1.5px dashed #c9c2b3;border-radius:6px;height:{alto};
-                display:flex;align-items:center;justify-content:center;margin-bottom:12px;">
-        <span style="color:#9a9282;font-size:13px;font-weight:600;letter-spacing:.5px;">PUBLICITE AQUÍ</span>
+                display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+        <span style="color:#9a9282;font-size:16px;font-weight:600;letter-spacing:.5px;">PUBLICITE AQUÍ</span>
     </div>"""
     # Reemplazar este bloque por el snippet de Google Ad Manager / AdSense correspondiente a cada zócalo.
 
 
-cols_ads_1 = st.columns(3)
-for c in cols_ads_1:
-    with c:
-        st.markdown(_zocalo_publicidad(), unsafe_allow_html=True)
-
-cols_ads_2 = st.columns(3)
-for c in cols_ads_2:
-    with c:
-        st.markdown(_zocalo_publicidad(), unsafe_allow_html=True)
+for _ in range(5):
+    st.markdown(_zocalo_publicidad(), unsafe_allow_html=True)
 
 st.markdown(f"""
 <div style="text-align:center;padding:25px 0 10px;color:#888;font-size:12px;border-top:1px solid #ddd;margin-top:30px;">
