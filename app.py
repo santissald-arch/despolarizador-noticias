@@ -21,10 +21,6 @@ st.set_page_config(
 )
 
 # ========== METADATOS SEO / OPEN GRAPH ==========
-# Nota: Streamlit renderiza del lado del cliente, así que esto ayuda a redes sociales
-# y a buscadores que ejecutan JS, pero no reemplaza un <head> estático servido por el
-# servidor. Para SEO más serio (sitemap.xml, robots.txt, meta por URL) conviene, más
-# adelante, un frontend estático o SSR delante de esta app.
 components.html("""
 <script>
 try {
@@ -72,7 +68,6 @@ h1, h2, h3 {
     color: #111 !important;
 }
 
-/* Sidebar más angosto */
 section[data-testid="stSidebar"] {
     background: #ffffff;
     border-right: 1px solid #e5e2db;
@@ -143,7 +138,6 @@ hr { border-color: #ddd !important; }
     align-items: center;
 }
 
-/* Botón de compartir por WhatsApp: selector con más especificidad que "a" para que gane siempre */
 a.btn-whatsapp, a.btn-whatsapp * {
     color: #ffffff !important;
     text-decoration: none !important;
@@ -164,7 +158,6 @@ a.btn-whatsapp {
 }
 a.btn-whatsapp:hover { background: #1DA851; }
 
-/* Pestañas (tabs) más prolijas, para Zona A / Zona B, etc. */
 .stTabs [data-baseweb="tab-list"] { gap: 4px; }
 .stTabs [data-baseweb="tab"] {
     background: #f0ede4;
@@ -233,7 +226,6 @@ st.markdown(f"""
 }}
 </style>
 """, unsafe_allow_html=True)
-
 
 # ========== LOGOS / COLORES DE MEDIOS ==========
 LOGOS = {
@@ -323,7 +315,7 @@ for i, t in enumerate(_titulares_infobae[:6], start=1):
         unsafe_allow_html=True
     )
 
-# ========== RANGO DE FECHAS (fijo, sin selector visible) ==========
+# ========== RANGO DE FECHAS ==========
 fecha_desde = datetime.now().date() - timedelta(days=3)
 fecha_hasta = datetime.now().date()
 
@@ -343,7 +335,7 @@ categorias = {
 }
 categorias_activas = [c for c, v in categorias.items() if v]
 
-# ========== DIARIOS POR PROVINCIA (2 por provincia) ==========
+# ========== DIARIOS POR PROVINCIA ==========
 PROVINCIA_MEDIOS = {
     "Buenos Aires": [("El Día", "eldia.com"), ("Diario Hoy", "diariohoy.net")],
     "Ciudad Autónoma de Buenos Aires": [("Clarín", "clarin.com"), ("La Nación", "lanacion.com.ar")],
@@ -480,7 +472,7 @@ def obtener_noticias_provincia(provincia: str):
     noticias.sort(key=lambda x: x["fecha"], reverse=True)
     return noticias
 
-# ========== FUNCIONES DE COTIZACIONES (uso general) ==========
+# ========== FUNCIONES DE COTIZACIONES ==========
 @st.cache_data(ttl=300)
 def obtener_precio_yahoo(symbol: str):
     try:
@@ -523,7 +515,7 @@ def obtener_riesgo_pais():
     except Exception:
         return None
 
-# ========== INDICADORES ECONÓMICOS: TICKER ANIMADO (arriba del mapa) ==========
+# ========== INDICADORES ECONÓMICOS ==========
 st.subheader("Panorama económico")
 
 def _item_ticker(nombre: str, valor: str, en_dolares: bool) -> str:
@@ -587,7 +579,7 @@ st.caption("Fuentes: DolarAPI, ArgentinaDatos y Yahoo Finance. El litio no tiene
 
 st.markdown("---")
 
-# ========== HERRAMIENTAS: COTIZADOR Y CALCULADORA ==========
+# ========== HERRAMIENTAS ==========
 st.subheader("Herramientas")
 col_cotizador, col_calculadora = st.columns(2)
 
@@ -614,7 +606,7 @@ with col_calculadora:
     st.markdown("**Calculadora de sueldo y aguinaldo**")
     sueldo_bruto = st.number_input("Mejor sueldo bruto del semestre ($)", min_value=0.0, value=1000000.0, step=10000.0, key="sueldo_bruto")
     aguinaldo = sueldo_bruto / 2
-    descuentos = sueldo_bruto * 0.17  # jubilación 11% + obra social 3% + PAMI 3%, aprox.
+    descuentos = sueldo_bruto * 0.17
     sueldo_neto_aprox = sueldo_bruto - descuentos
     st.write(f"**Aguinaldo (SAC) estimado:** ${aguinaldo:,.0f}")
     st.write(f"**Sueldo neto aproximado:** ${sueldo_neto_aprox:,.0f}")
@@ -634,7 +626,7 @@ with col_mapa:
         try:
             r = requests.get("https://apis.datos.gob.ar/georef/api/provincias.geojson", timeout=8)
             return r.json()
-        except:
+        except Exception:
             return None
 
     geo = cargar_provincias()
@@ -661,7 +653,6 @@ with col_mapa:
             st.session_state.ultima_provincia = provincia_seleccionada
             st.session_state.ocultar_provincia = False
 
-    # Presidente al pie del mapa
     st.markdown(f"""
     <div style="display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px 10px;
                 background:white;border:1px solid #e5e2db;border-radius:6px;">
@@ -673,7 +664,6 @@ with col_mapa:
     </div>
     """, unsafe_allow_html=True)
 
-    # Ficha política de la provincia seleccionada
     if provincia_seleccionada and not st.session_state.get("ocultar_provincia", False):
         resultado_gob = buscar_gobernador(provincia_seleccionada)
         if resultado_gob:
@@ -685,4 +675,909 @@ with col_mapa:
                     <span style="width:12px;height:12px;border-radius:50%;background:{color};display:inline-block;"></span>
                     <b style="font-size:15px;color:#111;">{info['nombre']}</b>
                 </div>
-                <div style="font-size:12px;color:#555;margin-bottom:8px;">Gobernador/a de {prov...
+                <div style="font-size:12px;color:#555;margin-bottom:8px;">Gobernador/a de {provincia_seleccionada} · {info['partido']}</div>
+            """
+            if info["resultado"]:
+                max_pct = max(p for _, p in info["resultado"])
+                filas = ""
+                for i, (nombre_c, pct) in enumerate(info["resultado"]):
+                    barra_color = color if i == 0 else "#c7c7c7"
+                    filas += f"""
+                    <div style="margin-bottom:5px;">
+                        <div style="font-size:11px;color:#333;display:flex;justify-content:space-between;">
+                            <span>{nombre_c}</span><span><b>{pct:.1f}%</b></span>
+                        </div>
+                        <div style="background:#eee;border-radius:4px;height:8px;overflow:hidden;">
+                            <div style="width:{pct/max_pct*100:.1f}%;background:{barra_color};height:100%;"></div>
+                        </div>
+                    </div>"""
+                ficha += f'<div style="font-size:11px;color:#888;margin-bottom:4px;">Cómo ganó la gobernación:</div>{filas}'
+            ficha += "</div>"
+            st.markdown(ficha, unsafe_allow_html=True)
+
+with col_bolsa:
+    st.subheader("Mercados")
+    st.caption("EE.UU. · Argentina")
+
+    TICKERS = [
+        ("S&P 500", "^GSPC"), ("Dow Jones", "^DJI"), ("Nasdaq", "^IXIC"),
+        ("Merval", "^MERV"), ("YPF", "YPF"), ("Galicia", "GGAL"),
+    ]
+
+    hubo_error = False
+    for nombre, symbol in TICKERS:
+        resultado = obtener_precio_yahoo(symbol)
+        if resultado:
+            precio, cambio = resultado
+            color = "#14804A" if cambio >= 0 else "#C0392B"
+            st.markdown(f"""
+            <div class="mercado-box">
+                <span style="font-weight:600;font-size:14px;color:#1a1a1a;">{nombre}</span>
+                <span>
+                    <b style="font-size:14px;color:#1a1a1a;">{precio:,.2f}</b>
+                    <span style="color:{color};font-size:12px;margin-left:6px;font-weight:600;">({cambio:+.2f}%)</span>
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            hubo_error = True
+            st.markdown(f"""
+            <div class="mercado-box">
+                <span style="font-weight:600;font-size:14px;color:#1a1a1a;">{nombre}</span>
+                <span style="color:#888;font-size:12px;">sin datos</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+    if hubo_error:
+        st.caption("Algunos valores no se pudieron actualizar en este momento.")
+
+st.markdown("---")
+
+# ========== CONGRESO ==========
+def barra_bancas(datos, total):
+    segmentos = "".join([
+        f'<div style="width:{count/total*100:.2f}%;background:{color};height:100%;" title="{nombre}: {count}"></div>'
+        for nombre, count, color in datos
+    ])
+    leyenda = "".join([
+        f'<div style="display:flex;align-items:center;gap:6px;margin:3px 12px 3px 0;font-size:12px;color:#333;">'
+        f'<span style="width:10px;height:10px;border-radius:50%;background:{color};display:inline-block;"></span>'
+        f'{nombre} ({count})</div>'
+        for nombre, count, color in datos
+    ])
+    return f"""
+    <div style="display:flex;height:22px;border-radius:6px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.15);margin-bottom:8px;">{segmentos}</div>
+    <div style="display:flex;flex-wrap:wrap;">{leyenda}</div>
+    """
+
+DIPUTADOS = [
+    ("La Libertad Avanza", 95, COLOR_PARTIDO["lla"]),
+    ("Unión por la Patria", 93, COLOR_PARTIDO["peronismo"]),
+    ("Provincias Unidas", 18, "#16A085"),
+    ("PRO", 12, COLOR_PARTIDO["pro"]),
+    ("UCR", 6, "#3498DB"),
+    ("Otros bloques", 257 - 95 - 93 - 18 - 12 - 6, "#95A5A6"),
+]
+SENADO = [
+    ("La Libertad Avanza", 20, COLOR_PARTIDO["lla"]),
+    ("Fuerza Patria (peronismo)", 28, COLOR_PARTIDO["peronismo"]),
+    ("Provincias Unidas", 3, "#16A085"),
+    ("Partidos provinciales", 6, "#8C97A6"),
+    ("Otros", 15, "#95A5A6"),
+]
+
+st.subheader("El Congreso, banca por banca")
+st.caption("Composición vigente desde el recambio legislativo de diciembre de 2025")
+col_dip, col_sen = st.columns(2)
+with col_dip:
+    st.markdown("**Cámara de Diputados** (257 bancas)")
+    st.markdown(barra_bancas(DIPUTADOS, 257), unsafe_allow_html=True)
+with col_sen:
+    st.markdown("**Senado** (72 bancas)")
+    st.markdown(barra_bancas(SENADO, 72), unsafe_allow_html=True)
+
+st.markdown("""
+<div style="background:white;border:1px solid #e5e2db;border-left:4px solid #B8860B;border-radius:6px;
+            padding:12px 16px;margin:14px 0;display:flex;gap:16px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:220px;">
+        <div style="font-size:12px;color:#14804A;font-weight:700;margin-bottom:4px;">✔ SE APROBARON</div>
+        <div style="font-size:13px;color:#333;">Presupuesto 2026 · Ley de Inocencia Fiscal</div>
+    </div>
+    <div style="flex:1;min-width:220px;">
+        <div style="font-size:12px;color:#B8860B;font-weight:700;margin-bottom:4px;">🕐 EN DEBATE</div>
+        <div style="font-size:13px;color:#333;">Reforma laboral · Reforma tributaria · Reforma previsional · Acuerdo Mercosur–Unión Europea</div>
+    </div>
+</div>
+<div style="font-size:11px;color:#888;margin-top:-8px;margin-bottom:10px;">
+    Resumen orientativo: el estado de cada proyecto cambia con frecuencia. Para el detalle en tiempo real, consultá hcdn.gob.ar o senado.gob.ar.
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("---")
+
+# ========== TERMÓMETRO POLÍTICO ==========
+POLITICOS_TERMOMETRO = [
+    "Javier Milei", "Cristina Kirchner", "Axel Kicillof", "Patricia Bullrich",
+    "Mauricio Macri", "Martín Llaryora", "Máximo Kirchner", "Diego Santilli",
+]
+
+@st.cache_data(ttl=1800)
+def obtener_menciones_politicos():
+    resultados = []
+    for nombre in POLITICOS_TERMOMETRO:
+        try:
+            consulta = nombre.replace(" ", "+")
+            url = f"https://news.google.com/rss/search?q=%22{consulta}%22+when:1d&hl=es-419&gl=AR&ceid=AR:es-419"
+            feed = feedparser.parse(url)
+            resultados.append((nombre, len(feed.entries)))
+        except Exception:
+            resultados.append((nombre, 0))
+    resultados.sort(key=lambda x: x[1], reverse=True)
+    return resultados
+
+st.subheader("Termómetro político")
+st.caption("Este entorno no tiene acceso a APIs de redes sociales (X, Instagram, TikTok), así que el ranking se arma contando menciones en titulares de noticias de las últimas 24 horas, como aproximación de quién está más presente en la conversación pública.")
+
+menciones = obtener_menciones_politicos()
+max_menciones = max([m for _, m in menciones] or [1]) or 1
+min_menciones = min([m for _, m in menciones] or [0])
+rango = max(1, max_menciones - min_menciones)
+nombres_html = ""
+for nombre, count in menciones:
+    ratio = (count - min_menciones) / rango
+    tam = 16 + ratio * 34
+    peso = 500 + int(ratio * 400)
+    opacidad = 0.5 + ratio * 0.5
+    nombres_html += (
+        f'<span title="{count} menciones" '
+        f'style="font-family:\'Playfair Display\',serif;font-size:{tam:.0f}px;'
+        f'font-weight:{peso};color:#8B0000;opacity:{opacidad:.2f};'
+        f'margin:6px 16px;display:inline-block;line-height:1.3;">{nombre}</span>'
+    )
+st.markdown(
+    f'<div style="background:white;border:1px solid #e5e2db;border-radius:6px;'
+    f'padding:26px 20px;text-align:center;">{nombres_html}</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown("---")
+
+# ========== HORÓSCOPO, QUINIELA Y TRÁNSITO ==========
+_SIGNOS = [
+    ("Aries", "♈"), ("Tauro", "♉"), ("Géminis", "♊"), ("Cáncer", "♋"),
+    ("Leo", "♌"), ("Virgo", "♍"), ("Libra", "♎"), ("Escorpio", "♏"),
+    ("Sagitario", "♐"), ("Capricornio", "♑"), ("Acuario", "♒"), ("Piscis", "♓"),
+]
+_MENSAJES_HOROSCOPO = [
+    "Buen momento para tomar decisiones que veías postergando. La energía está de tu lado.",
+    "Cuidá los vínculos cercanos: una charla pendiente puede destrabar una tensión.",
+    "El trabajo pide foco. Ordená prioridades antes de sumar cosas nuevas.",
+    "Un imprevisto económico te obliga a replantear gastos. Nada grave si lo mirás a tiempo.",
+    "La energía está alta: aprovechá para avanzar en lo que venías dejando para después.",
+    "Momento de escuchar más que hablar. Las respuestas pueden venir de donde menos lo esperás.",
+    "Se abre una oportunidad laboral o de estudio. Prestá atención a los detalles.",
+    "La salud pide un poco de descanso. No te sobre-exijas hoy.",
+    "Buen día para lo social: encuentros y conversaciones que suman.",
+    "Evitá discusiones por temas de dinero compartido. Mejor hablarlo con calma.",
+    "Se favorece todo lo creativo. Si tenés una idea dando vueltas, es momento de anotarla.",
+    "La intuición está afilada: confiá en tu primera impresión sobre una decisión pendiente.",
+]
+
+def _horoscopo_del_dia(indice_signo: int) -> str:
+    dia_del_anio = datetime.now().timetuple().tm_yday
+    return _MENSAJES_HOROSCOPO[(dia_del_anio + indice_signo) % len(_MENSAJES_HOROSCOPO)]
+
+@st.cache_data(ttl=1800)
+def obtener_noticias_transito():
+    try:
+        url = "https://news.google.com/rss/search?q=cortes+de+ruta+OR+tr%C3%A1nsito+Buenos+Aires&hl=es-419&gl=AR&ceid=AR:es-419"
+        feed = feedparser.parse(url)
+        notas = []
+        for entry in feed.entries[:4]:
+            titulo = entry.title
+            if " - " in titulo:
+                titulo = titulo.rsplit(" - ", 1)[0]
+            notas.append({"titulo": titulo, "link": entry.link})
+        return notas
+    except Exception:
+        return []
+
+col_horoscopo, col_quiniela, col_transito = st.columns(3)
+
+with col_horoscopo:
+    st.subheader("Horóscopo del día")
+    signo_elegido = st.selectbox("Tu signo", [s[0] for s in _SIGNOS], key="signo_horoscopo")
+    idx_signo = [s[0] for s in _SIGNOS].index(signo_elegido)
+    simbolo = _SIGNOS[idx_signo][1]
+    st.markdown(f"""
+    <div class="noticia-card">
+        <div style="font-size:32px;text-align:center;">{simbolo}</div>
+        <div style="font-size:13px;color:#333;text-align:center;margin-top:6px;line-height:1.4;">
+            {_horoscopo_del_dia(idx_signo)}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_quiniela:
+    st.subheader("Quiniela y sorteos")
+    st.markdown("""
+    <div class="noticia-card">
+        <div style="font-size:13px;color:#333;line-height:1.5;">
+            Los resultados de Quiniela Nacional, Provincia, Loto y Brinco cambian varias veces al día,
+            así que para el número exacto y actualizado te conviene ir a la fuente oficial.
+        </div>
+        <div style="margin-top:10px;">
+            <a href="https://www.loteria.gov.ar" target="_blank">Loteria Nacional →</a><br>
+            <a href="https://www.loteriadebuenosaires.gob.ar" target="_blank">Lotería de Buenos Aires →</a>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_transito:
+    st.subheader("Tránsito y rutas")
+    noticias_transito = obtener_noticias_transito()
+    if noticias_transito:
+        for nt in noticias_transito:
+            st.markdown(f"""
+            <div class="noticia-card" style="padding:10px 12px;margin-bottom:8px;">
+                <a href="{nt['link']}" target="_blank" style="font-size:12px;color:#111!important;line-height:1.3;">{nt['titulo']}</a>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.info("No se encontraron novedades de tránsito en este momento.")
+
+st.markdown("---")
+
+# ========== NOTICIAS DE LA PROVINCIA SELECCIONADA ==========
+if provincia_seleccionada and not st.session_state.get("ocultar_provincia", False):
+    medios_provincia = buscar_medios_provincia(provincia_seleccionada)
+    if medios_provincia:
+        col_titulo, col_cerrar = st.columns([5, 1])
+        with col_titulo:
+            st.subheader(f"Noticias de {provincia_seleccionada}")
+            nombres_lista = [m[0] for m in medios_provincia]
+            if len(nombres_lista) > 1:
+                nombres_fuentes = ", ".join(nombres_lista[:-1]) + " y " + nombres_lista[-1]
+            else:
+                nombres_fuentes = nombres_lista[0] if nombres_lista else ""
+            st.caption(f"Fuentes: {nombres_fuentes}")
+        with col_cerrar:
+            if st.button("✕ Cerrar", use_container_width=True):
+                st.session_state.ocultar_provincia = True
+                st.rerun()
+
+        with st.spinner("Buscando noticias locales..."):
+            noticias_provincia = obtener_noticias_provincia(provincia_seleccionada)
+
+        if noticias_provincia:
+            cols_prov = st.columns(2)
+            for i, n in enumerate(noticias_provincia[:10]):
+                with cols_prov[i % 2]:
+                    st.markdown(f"""
+                    <div class="noticia-card">
+                        {chip_medio(n['medio'])}
+                        <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:600;
+                                    line-height:1.35;margin-top:8px;">
+                            <a href="{n['link']}" target="_blank" style="color:#111!important;">{n['titulo']}</a>
+                        </div>
+                        {boton_whatsapp(n['titulo'], n['link'])}
+                    </div>
+                    """, unsafe_allow_html=True)
+        else:
+            st.info("No se encontraron noticias recientes para esta provincia.")
+        st.markdown("---")
+    else:
+        st.caption(f"Todavía no tenemos diarios cargados para {provincia_seleccionada}.")
+
+# ========== DESTACADOS ==========
+st.subheader("Destacados del día")
+
+def extraer_imagen(entry):
+    if hasattr(entry, "media_content") and entry.media_content:
+        for m in entry.media_content:
+            url = m.get("url")
+            if url and any(ext in url.lower() for ext in [".jpg", ".jpeg", ".png", ".webp"]):
+                return url
+    if hasattr(entry, "media_thumbnail") and entry.media_thumbnail:
+        return entry.media_thumbnail[0].get("url")
+    content = ""
+    if entry.get("content"):
+        content = entry.content[0].get("value", "")
+    elif entry.get("summary"):
+        content = entry.summary
+    match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', content, re.IGNORECASE)
+    return match.group(1) if match else None
+
+@st.cache_data(ttl=300)
+def obtener_noticia_infobae_rss():
+    try:
+        feed = feedparser.parse("https://www.infobae.com/arc/outboundfeeds/rss/")
+        excluidas = ["/mexico/", "/colombia/", "/chile/", "/peru/", "/venezuela/",
+                     "/america/", "/estados-unidos/", "/espana/", "/centroamerica/",
+                     "/teleshow/", "/tendencias/"]
+        for e in feed.entries[:20]:
+            if not any(seccion in e.link for seccion in excluidas):
+                return {"titulo": e.title, "link": e.link, "imagen": extraer_imagen(e)}
+    except Exception:
+        return None
+    return None
+
+@st.cache_data(ttl=180)
+def obtener_tapa_infobae():
+    """Trae la noticia principal de la edición Argentina de Infobae.
+    La home redirige por geolocalización; se usa el RSS de Política (AR).
+    """
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; NoticiasApp/1.0)"}
+    _EXCLUIDAS = [
+        "/mexico/", "/colombia/", "/chile/", "/peru/", "/venezuela/",
+        "/america/", "/estados-unidos/", "/espana/", "/centroamerica/",
+        "/teleshow/", "/tendencias/",
+    ]
+
+    def _es_valida(url):
+        if "infobae.com" not in url or "/arc/outboundfeeds" in url:
+            return False
+        return not any(s in url for s in _EXCLUIDAS)
+
+    def _imagen_de_entry(entry):
+        img = extraer_imagen(entry)
+        if img:
+            return img
+        if hasattr(entry, "media_content") and entry.media_content:
+            for m in entry.media_content:
+                u = m.get("url")
+                if u:
+                    return u
+        return None
+
+    def _desde_feed(feed_url):
+        try:
+            feed = feedparser.parse(feed_url)
+            for entry in feed.entries[:12]:
+                link = (entry.get("link") or "").strip()
+                if not _es_valida(link):
+                    continue
+                titulo = (entry.get("title") or "").strip()
+                if len(titulo) < 20:
+                    continue
+                return {
+                    "titulo": titulo,
+                    "link": link,
+                    "imagen": _imagen_de_entry(entry),
+                }
+        except Exception:
+            return None
+        return None
+
+    tapa = _desde_feed(
+        "https://www.infobae.com/arc/outboundfeeds/rss/category/politica/"
+    )
+    if not tapa:
+        tapa = _desde_feed("https://www.infobae.com/arc/outboundfeeds/rss/")
+
+    if tapa and not tapa.get("imagen"):
+        try:
+            r = requests.get(tapa["link"], headers=headers, timeout=8)
+            m = re.search(r'<meta property="og:image" content="([^"]+)"', r.text)
+            if m:
+                tapa["imagen"] = m.group(1)
+        except Exception:
+            pass
+
+    return tapa
+
+n_infobae = obtener_tapa_infobae() or obtener_noticia_infobae_rss()
+
+col_a, col_b = st.columns(2)
+
+with col_a:
+    if n_infobae:
+        st.markdown('<div class="noticia-card">', unsafe_allow_html=True)
+        st.markdown(f'{chip_medio("Infobae")} <span style="font-size:11px;color:#8B0000;font-weight:600;margin-left:6px;">TAPA DEL DIARIO</span>', unsafe_allow_html=True)
+
+        if n_infobae.get("imagen"):
+            st.image(n_infobae["imagen"], use_container_width=True)
+        else:
+            st.markdown(get_logo_html("Infobae"), unsafe_allow_html=True)
+
+        st.markdown(f"""
+        <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;line-height:1.3;margin:12px 0;color:#111;">
+            {n_infobae['titulo']}
+        </div>
+        <a href="{n_infobae['link']}" target="_blank">Leer en Infobae →</a><br>
+        {boton_whatsapp(n_infobae['titulo'], n_infobae['link'])}
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.info("No se pudo cargar la noticia de Infobae")
+
+with col_b:
+    st.markdown(f"""
+    <div class="noticia-card">
+        {chip_medio("TN")} <span style="font-size:11px;color:#00a0e3;font-weight:600;margin-left:6px;">TRANSMISIÓN EN VIVO</span>
+        <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:4px;margin-top:8px;">
+            <iframe src="https://www.youtube.com/embed/live_stream?channel=UCj6PcyLvpnIRT_2W_mwa9Aw"
+                    style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"
+                    allowfullscreen></iframe>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("---")
+
+# ========== COLUMNA DE OPINIÓN ==========
+@st.cache_data(ttl=900)
+def obtener_columna_opinion():
+    try:
+        url = ("https://news.google.com/rss/search?q=(site:infobae.com/opinion+OR+"
+               "site:lanacion.com.ar/opinion+OR+site:clarin.com/opinion)&hl=es-419&gl=AR&ceid=AR:es-419")
+        feed = feedparser.parse(url)
+        notas = []
+        for entry in feed.entries[:3]:
+            titulo = entry.title
+            if " - " in titulo:
+                titulo, medio = titulo.rsplit(" - ", 1)
+            else:
+                medio = "Opinión"
+            notas.append({"titulo": titulo, "link": entry.link, "medio": medio})
+        return notas
+    except Exception:
+        return []
+
+st.subheader("Columna de opinión")
+st.caption("Análisis y columnas de opinión política de distintos medios")
+notas_opinion = obtener_columna_opinion()
+if notas_opinion:
+    cols_opinion = st.columns(len(notas_opinion))
+    for i, nota in enumerate(notas_opinion):
+        with cols_opinion[i]:
+            st.markdown(f"""
+            <div class="noticia-card">
+                {chip_medio(nota['medio'])}
+                <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:600;
+                            line-height:1.35;margin-top:8px;">
+                    <a href="{nota['link']}" target="_blank" style="color:#111!important;">{nota['titulo']}</a>
+                </div>
+                {boton_whatsapp(nota['titulo'], nota['link'])}
+            </div>
+            """, unsafe_allow_html=True)
+else:
+    st.info("No se encontraron columnas de opinión en este momento.")
+
+st.markdown("---")
+
+# ========== PARA ENTENDER MEJOR ==========
+@st.cache_data(ttl=1800)
+def obtener_explicadores():
+    try:
+        url = ("https://news.google.com/rss/search?q=%22qu%C3%A9%20significa%22+OR+%22te%20lo%20explicamos%22"
+               "+Argentina&hl=es-419&gl=AR&ceid=AR:es-419")
+        feed = feedparser.parse(url)
+        notas = []
+        for entry in feed.entries[:3]:
+            titulo = entry.title
+            medio = "Medio"
+            if " - " in titulo:
+                titulo, medio = titulo.rsplit(" - ", 1)
+            notas.append({"titulo": titulo, "link": entry.link, "medio": medio})
+        return notas
+    except Exception:
+        return []
+
+st.subheader("Para entender mejor")
+st.caption("Notas explicativas sobre los temas del momento")
+notas_explicador = obtener_explicadores()
+if notas_explicador:
+    cols_explicador = st.columns(len(notas_explicador))
+    for i, nota in enumerate(notas_explicador):
+        with cols_explicador[i]:
+            st.markdown(f"""
+            <div class="noticia-card">
+                {chip_medio(nota['medio'])}
+                <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:600;
+                            line-height:1.35;margin-top:8px;">
+                    <a href="{nota['link']}" target="_blank" style="color:#111!important;">{nota['titulo']}</a>
+                </div>
+                {boton_whatsapp(nota['titulo'], nota['link'])}
+            </div>
+            """, unsafe_allow_html=True)
+else:
+    st.info("No se encontraron notas explicativas en este momento.")
+
+st.markdown("---")
+
+# ========== TABLA AFA ==========
+def _buscar_zonas_tabla(obj, nombre_actual=None, resultados=None):
+    if resultados is None:
+        resultados = []
+    if isinstance(obj, dict):
+        entries = obj.get("entries")
+        if isinstance(entries, list) and entries and isinstance(entries[0], dict) and "team" in entries[0]:
+            nombre_zona = nombre_actual or obj.get("name") or obj.get("displayName") or f"Zona {len(resultados) + 1}"
+            firma = tuple(e.get("team", {}).get("displayName") for e in entries)
+            if firma not in [r[2] for r in resultados]:
+                resultados.append((nombre_zona, entries, firma))
+            return resultados
+        nombre_aqui = obj.get("name") or obj.get("displayName") or obj.get("abbreviation") or nombre_actual
+        for k, v in obj.items():
+            if k == "entries":
+                continue
+            _buscar_zonas_tabla(v, nombre_aqui, resultados)
+    elif isinstance(obj, list):
+        for item in obj:
+            _buscar_zonas_tabla(item, nombre_actual, resultados)
+    return resultados
+
+@st.cache_data(ttl=900)
+def obtener_zonas_afa():
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; NoticiasApp/1.0)"}
+    urls = [
+        "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings",
+        "https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/standings",
+        "https://site.web.api.espn.com/apis/v2/sports/soccer/arg.1/standings",
+    ]
+    for url in urls:
+        try:
+            r = requests.get(url, headers=headers, timeout=8)
+            if r.status_code != 200:
+                continue
+            data = r.json()
+            zonas_crudas = _buscar_zonas_tabla(data)
+            if not zonas_crudas:
+                continue
+            zonas = []
+            for nombre_zona, entries, _firma in zonas_crudas:
+                tabla = []
+                for e in entries:
+                    team = e.get("team", {})
+                    equipo = team.get("displayName") or team.get("name") or "—"
+                    escudo = None
+                    logos = team.get("logos")
+                    if isinstance(logos, list) and logos:
+                        escudo = logos[0].get("href")
+                    elif team.get("logo"):
+                        escudo = team.get("logo")
+                    stats = {s.get("name"): s.get("value") for s in e.get("stats", []) if isinstance(s, dict)}
+                    tabla.append({
+                        "equipo": equipo, "escudo": escudo,
+                        "pj": stats.get("gamesPlayed"), "pg": stats.get("wins"),
+                        "pe": stats.get("ties"), "pp": stats.get("losses"),
+                        "pts": stats.get("points"),
+                    })
+                if tabla:
+                    tabla.sort(key=lambda x: (x["pts"] if x["pts"] is not None else -1), reverse=True)
+                    zonas.append((nombre_zona, tabla))
+            if zonas:
+                return zonas
+        except Exception:
+            continue
+    return None
+
+@st.cache_data(ttl=600)
+def obtener_noticia_torneo():
+    try:
+        url = "https://news.google.com/rss/search?q=Liga+Profesional+Argentina+AFA&hl=es-419&gl=AR&ceid=AR:es-419"
+        feed = feedparser.parse(url)
+        if not feed.entries:
+            return None
+        entry = feed.entries[0]
+        titulo = entry.title
+        medio = "Medio"
+        if " - " in titulo:
+            titulo, medio = titulo.rsplit(" - ", 1)
+        return {"titulo": titulo, "link": entry.link, "medio": medio, "imagen": extraer_imagen(entry)}
+    except Exception:
+        return None
+
+def _tabla_zona_html(equipos) -> str:
+    filas = ""
+    for i, eq in enumerate(equipos, start=1):
+        if eq.get("escudo"):
+            escudo_html = f'<img src="{eq["escudo"]}" style="width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:8px;">'
+        else:
+            escudo_html = '<span style="display:inline-block;width:20px;height:20px;margin-right:8px;"></span>'
+        fondo_fila = "#f7f9fb" if i % 2 == 0 else "#ffffff"
+        filas += f"""
+        <tr style="background:{fondo_fila};border-bottom:1px solid #edf0f3;">
+            <td style="padding:7px 6px;color:#8fa6bd;font-weight:700;">{i}</td>
+            <td style="padding:7px 6px;text-align:left;color:#111;font-weight:600;">{escudo_html}{eq['equipo']}</td>
+            <td style="padding:7px 6px;">{eq['pj'] if eq['pj'] is not None else '-'}</td>
+            <td style="padding:7px 6px;">{eq['pg'] if eq['pg'] is not None else '-'}</td>
+            <td style="padding:7px 6px;">{eq['pe'] if eq['pe'] is not None else '-'}</td>
+            <td style="padding:7px 6px;">{eq['pp'] if eq['pp'] is not None else '-'}</td>
+            <td style="padding:7px 6px;font-weight:800;color:#0B2E4F;">{eq['pts'] if eq['pts'] is not None else '-'}</td>
+        </tr>"""
+    return f"""
+    <div style="background:white;border:1px solid #e5e2db;border-radius:0 8px 8px 8px;padding:4px 12px 10px;overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;text-align:center;">
+    <thead><tr style="border-bottom:2px solid #0B2E4F;color:#0B2E4F;">
+        <th style="padding:8px 6px;">#</th><th style="padding:8px 6px;text-align:left;">Equipo</th>
+        <th style="padding:8px 6px;">PJ</th><th style="padding:8px 6px;">PG</th>
+        <th style="padding:8px 6px;">PE</th><th style="padding:8px 6px;">PP</th>
+        <th style="padding:8px 6px;">Pts</th>
+    </tr></thead>
+    <tbody>{filas}</tbody>
+    </table>
+    </div>"""
+
+col_tabla, col_noticia_torneo = st.columns([1.6, 1])
+
+with col_tabla:
+    st.subheader("Tabla del torneo (AFA)")
+    zonas_afa = obtener_zonas_afa()
+    if zonas_afa:
+        if len(zonas_afa) > 1:
+            tabs_zonas = st.tabs([nombre for nombre, _ in zonas_afa])
+            for tab, (_nombre, equipos) in zip(tabs_zonas, zonas_afa):
+                with tab:
+                    st.markdown(_tabla_zona_html(equipos), unsafe_allow_html=True)
+        else:
+            st.markdown(_tabla_zona_html(zonas_afa[0][1]), unsafe_allow_html=True)
+    else:
+        st.info("No se pudo cargar la tabla del torneo en este momento. Podés verla directamente en [ESPN](https://www.espn.com.ar/futbol/posiciones/_/liga/arg.1) o en [afa.com.ar](https://www.afa.com.ar).")
+    st.caption("Fuente: ESPN. Para la tabla oficial, consultá afa.com.ar.")
+
+with col_noticia_torneo:
+    st.subheader("En el torneo")
+    noticia_torneo = obtener_noticia_torneo()
+    if noticia_torneo:
+        st.markdown('<div class="noticia-card">', unsafe_allow_html=True)
+        if noticia_torneo.get("imagen"):
+            st.image(noticia_torneo["imagen"], use_container_width=True)
+        else:
+            st.markdown(get_logo_html(noticia_torneo["medio"]), unsafe_allow_html=True)
+        st.markdown(f"""
+        {chip_medio(noticia_torneo['medio'])}
+        <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:600;
+                    line-height:1.35;margin-top:8px;">
+            <a href="{noticia_torneo['link']}" target="_blank" style="color:#111!important;">{noticia_torneo['titulo']}</a>
+        </div>
+        {boton_whatsapp(noticia_torneo['titulo'], noticia_torneo['link'])}
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.info("No se encontraron noticias del torneo en este momento.")
+
+st.markdown("---")
+
+# ========== NOTICIAS ==========
+st.subheader("Últimas noticias")
+
+TN_FEED = "https://tn.com.ar/arc/outboundfeeds/google-news-feed/?outputType=xml"
+INFODEFENSA_FEED = "https://www.infodefensa.com/rss.php"
+INFODEFENSA_AR_URL = "https://www.infodefensa.com/america-argentina.php"
+
+feeds_extra = {
+    "Política": ["http://cadena3.com/rss/PoliticayEconomia.xml"],
+    "Economía": ["http://cadena3.com/rss/PoliticayEconomia.xml"],
+    "Defensa / Seguridad": [INFODEFENSA_FEED],
+    "Entretenimiento": ["http://cadena3.com/rss/Espectaculos.xml"],
+    "Deportes": ["http://cadena3.com/rss/Deportes.xml", "https://www.ole.com.ar/rss/ultimas-noticias/"],
+}
+
+PALABRAS_ARGENTINA_DEFENSA = [
+    "argentina", "argentino", "argentina/", "faa", "fuerza aerea argentina", "fuerza aérea argentina",
+    "ejercito argentino", "ejército argentino", "armada argentina", "milei", "f-16", "f16",
+    "ministerio de defensa", "gendarmeria", "gendarmería", "prefectura"
+]
+
+def es_defensa_argentina(entry) -> bool:
+    texto = (entry.title + " " + entry.link).lower()
+    return any(p in texto for p in PALABRAS_ARGENTINA_DEFENSA)
+
+def detectar_categoria_tn(link):
+    link = link.lower()
+    if "/politica/" in link:
+        return "Política"
+    if "/economia/" in link:
+        return "Economía"
+    if "/sociedad/" in link:
+        return "Sociedad"
+    if "/internacional/" in link:
+        return "Internacional"
+    if "/show/" in link or "/espectaculos/" in link:
+        return "Entretenimiento"
+    if "/deportes/" in link:
+        return "Deportes"
+    if "/policiales/" in link or "/seguridad/" in link:
+        return "Defensa / Seguridad"
+    return "Sociedad"
+
+@st.cache_data(ttl=300)
+def obtener_noticias(cats, desde, hasta):
+    lista = []
+    fuentes = [TN_FEED]
+    for c in cats:
+        fuentes.extend(feeds_extra.get(c, []))
+
+    for url in set(fuentes):
+        try:
+            feed = feedparser.parse(url)
+            medio = "Infodefensa" if "infodefensa" in url else feed.feed.get("title", "Medio")[:40]
+            for entry in feed.entries[:30 if "infodefensa" in url else 10]:
+                if "infodefensa" in url and not es_defensa_argentina(entry):
+                    continue
+                try:
+                    f = datetime(*entry.published_parsed[:6]).date()
+                except Exception:
+                    f = datetime.now().date()
+                if not (desde <= f <= hasta):
+                    continue
+                titulo = entry.title
+                if "tn.com.ar" in url:
+                    cat = detectar_categoria_tn(entry.link)
+                    if cat not in cats:
+                        continue
+                elif "infodefensa" in url:
+                    cat = "Defensa / Seguridad"
+                else:
+                    cat = "Sociedad"
+                lista.append({
+                    "titulo": titulo, "link": entry.link, "medio": medio, "categoria": cat,
+                    "fecha": f, "imagen": extraer_imagen(entry)
+                })
+                if "infodefensa" in url and len([n for n in lista if n["medio"] == "Infodefensa"]) >= 8:
+                    break
+        except Exception:
+            continue
+
+    if "Defensa / Seguridad" in cats:
+        try:
+            feed_f16 = feedparser.parse(
+                "https://news.google.com/rss/search?q=F-16+Argentina+site:infodefensa.com&hl=es-419&gl=AR&ceid=AR:es-419"
+            )
+            for entry in feed_f16.entries[:5]:
+                try:
+                    f = datetime(*entry.published_parsed[:6]).date()
+                except Exception:
+                    f = datetime.now().date()
+                if not (desde <= f <= hasta):
+                    continue
+                titulo = entry.title.rsplit(" - ", 1)[0] if " - " in entry.title else entry.title
+                if any(n["titulo"] == titulo for n in lista):
+                    continue
+                lista.append({
+                    "titulo": titulo, "link": entry.link, "medio": "Infodefensa", "categoria": "Defensa / Seguridad",
+                    "fecha": f, "imagen": extraer_imagen(entry)
+                })
+        except Exception:
+            pass
+
+    return lista
+
+if "pagina" not in st.session_state:
+    st.session_state.pagina = 0
+
+with st.spinner("Cargando noticias..."):
+    noticias = obtener_noticias(categorias_activas, fecha_desde, fecha_hasta)
+
+if "Defensa / Seguridad" in categorias_activas:
+    st.caption(f"Las noticias de Infodefensa muestran solo lo referido a Argentina · [Ver más]({INFODEFENSA_AR_URL})")
+
+if noticias:
+    noticias = sorted(noticias, key=lambda x: x["fecha"], reverse=True)
+    TAMANO = 5
+    total = max(1, (len(noticias) - 1) // TAMANO + 1)
+    st.session_state.pagina = max(0, min(st.session_state.pagina, total - 1))
+    pagina = noticias[st.session_state.pagina * TAMANO:(st.session_state.pagina + 1) * TAMANO]
+
+    if pagina:
+        n = pagina[0]
+        col1, col2 = st.columns([1.2, 2.8])
+        with col1:
+            if n.get("imagen"):
+                st.image(n["imagen"], use_container_width=True)
+            else:
+                st.markdown(get_logo_html(n["medio"]), unsafe_allow_html=True)
+        with col2:
+            st.markdown(f"""
+            <div style="margin-bottom:6px;">{chip_medio(n['medio'])} <span style="font-size:12px;color:#8B0000;font-weight:600;margin-left:6px;">{n['categoria'].upper()}</span></div>
+            <div style="font-family:'Playfair Display',serif;font-size:24px;font-weight:700;line-height:1.25;margin-bottom:10px;color:#111;">
+                {n['titulo']}
+            </div>
+            <a href="{n['link']}" target="_blank">Leer nota completa →</a><br>
+            {boton_whatsapp(n['titulo'], n['link'])}
+            """, unsafe_allow_html=True)
+
+        st.markdown("---")
+
+    resto = pagina[1:]
+    if resto:
+        cols = st.columns(2)
+        for i, n in enumerate(resto):
+            with cols[i % 2]:
+                with st.container():
+                    st.markdown('<div class="noticia-card">', unsafe_allow_html=True)
+                    c_img, c_txt = st.columns([1, 2.2])
+                    with c_img:
+                        if n.get("imagen"):
+                            st.image(n["imagen"], use_container_width=True)
+                        else:
+                            st.markdown(get_logo_html(n["medio"]), unsafe_allow_html=True)
+                    with c_txt:
+                        st.markdown(f"""
+                        <div style="margin-bottom:4px;">{chip_medio(n['medio'])} <span style="font-size:11px;color:#666;margin-left:6px;">{n['fecha']}</span></div>
+                        <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:600;line-height:1.3;">
+                            <a href="{n['link']}" target="_blank" style="color:#111!important;">{n['titulo']}</a>
+                        </div>
+                        {boton_whatsapp(n['titulo'], n['link'])}
+                        """, unsafe_allow_html=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown("---")
+    ca, cb, cc = st.columns([1, 2, 1])
+    with ca:
+        if st.button("← Anterior", disabled=st.session_state.pagina == 0, use_container_width=True):
+            st.session_state.pagina -= 1
+            st.rerun()
+    with cb:
+        st.markdown(f"<div style='text-align:center;padding-top:8px;color:#1a1a1a;'>Página {st.session_state.pagina+1} de {total}</div>", unsafe_allow_html=True)
+    with cc:
+        if st.button("Siguiente →", disabled=st.session_state.pagina >= total - 1, use_container_width=True):
+            st.session_state.pagina += 1
+            st.rerun()
+else:
+    st.info("No se encontraron noticias con esos filtros.")
+
+st.markdown("---")
+
+# ========== NEWSLETTER ==========
+_ARCHIVO_SUSCRIPTORES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "suscriptores.csv")
+
+def guardar_suscriptor(email: str) -> bool:
+    try:
+        existe = os.path.isfile(_ARCHIVO_SUSCRIPTORES)
+        with open(_ARCHIVO_SUSCRIPTORES, "a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            if not existe:
+                writer.writerow(["email", "fecha"])
+            writer.writerow([email, datetime.now().isoformat(timespec="seconds")])
+        return True
+    except Exception:
+        return False
+
+st.markdown("""
+<div style="background:linear-gradient(120deg,#0B2E4F,#1B4F91);border-radius:12px;padding:26px 30px;
+            text-align:center;color:white;margin-bottom:8px;">
+    <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:800;margin-bottom:6px;">
+        Recibí el resumen del día en tu mail
+    </div>
+    <div style="font-size:13px;color:#cfe0f2;">
+        Dólar, riesgo país y las noticias más importantes de Argentina, todas las mañanas.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+col_news1, col_news2, col_news3 = st.columns([2, 1, 2])
+with col_news2:
+    email_suscripcion = st.text_input("Tu email", placeholder="tu@email.com", key="email_newsletter", label_visibility="collapsed")
+    if st.button("Suscribirme", use_container_width=True, key="btn_newsletter"):
+        if email_suscripcion and "@" in email_suscripcion and "." in email_suscripcion.split("@")[-1]:
+            if guardar_suscriptor(email_suscripcion):
+                st.success("¡Listo! Ya estás suscripto.")
+            else:
+                st.error("No se pudo guardar la suscripción, intentá de nuevo.")
+        else:
+            st.warning("Ingresá un email válido.")
+
+st.markdown("---")
+
+# ========== ZÓCALOS PUBLICITARIOS ==========
+st.caption("Espacios publicitarios")
+
+def _zocalo_publicidad(alto="220px"):
+    return f"""
+    <div style="background:repeating-linear-gradient(45deg,#f0ede6,#f0ede6 10px,#e8e4da 10px,#e8e4da 20px);
+                border:1.5px dashed #c9c2b3;border-radius:6px;height:{alto};
+                display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+        <span style="color:#9a9282;font-size:16px;font-weight:600;letter-spacing:.5px;">PUBLICITE AQUÍ</span>
+    </div>"""
+
+for _ in range(5):
+    st.markdown(_zocalo_publicidad(), unsafe_allow_html=True)
+
+st.markdown("""
+<div style="text-align:center;padding:25px 0 10px;color:#888;font-size:12px;border-top:1px solid #ddd;margin-top:30px;">
+    Noticias de Argentina
+</div>
+""", unsafe_allow_html=True)
