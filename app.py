@@ -1003,8 +1003,9 @@ def obtener_noticia_infobae_rss():
     try:
         feed = feedparser.parse("https://www.infobae.com/arc/outboundfeeds/rss/")
         excluidas = ["/mexico/", "/colombia/", "/chile/", "/peru/", "/venezuela/",
-                     "/america/", "/estados-unidos/", "/espana/"]
-        for e in feed.entries[:15]:
+                     "/america/", "/estados-unidos/", "/espana/", "/centroamerica/",
+                     "/teleshow/", "/tendencias/"]
+        for e in feed.entries[:20]:
             if not any(seccion in e.link for seccion in excluidas):
                 return {"titulo": e.title, "link": e.link, "imagen": extraer_imagen(e)}
     except Exception:
@@ -1013,58 +1014,51 @@ def obtener_noticia_infobae_rss():
 
 @st.cache_data(ttl=180)
 def obtener_tapa_infobae():
-    """Intenta traer la noticia principal (la número 1) de la sección Argentina de Infobae."""
+    """Trae la noticia principal del día de la Argentina en Infobae.
+
+    IMPORTANTE: la home 'https://www.infobae.com/' (y '/argentina/', que ni
+    siquiera es una ruta real) hacen un redirect según la geolocalización del
+    servidor que pide la página, así que desde un servidor fuera de Argentina
+    pueden devolver la edición de México, EE.UU., etc. En cambio
+    '/ultimas-noticias/' y '/politica/' son rutas fijas de la edición Argentina
+    que NO redirigen por geolocalización, así que son la fuente confiable acá.
+    """
     try:
         headers = {"User-Agent": "Mozilla/5.0 (compatible; NoticiasApp/1.0)"}
-        # Infobae es un medio panregional (tiene ediciones/tapas de México, Colombia, etc.).
-        # Para no traer noticias de otros países, se usa específicamente la sección Argentina.
-        r = requests.get("https://www.infobae.com/argentina/", headers=headers, timeout=8)
-        html = r.text
-        link = None
 
-        def _es_nota_argentina(url_it: str) -> bool:
+        # Nunca se elige como "noticia principal" contenido de espectáculos/tendencias
+        # (aparecen mezclados por orden cronológico, pero no son la nota de tapa) ni
+        # de otras ediciones por país.
+        _EXCLUIDAS = [
+            "/mexico/", "/colombia/", "/chile/", "/peru/", "/venezuela/",
+            "/america/", "/estados-unidos/", "/espana/", "/centroamerica/",
+            "/teleshow/", "/tendencias/",
+        ]
+
+        def _es_nota_valida(url_it: str) -> bool:
             if "infobae.com" not in url_it or "/arc/outboundfeeds" in url_it:
                 return False
-            # Excluye explícitamente otras ediciones/países de Infobae
-            excluidas = ["/mexico/", "/colombia/", "/chile/", "/peru/", "/venezuela/",
-                         "/america/", "/estados-unidos/", "/espana/"]
-            if any(seccion in url_it for seccion in excluidas):
-                return False
-            return True
+            return not any(seccion in url_it for seccion in _EXCLUIDAS)
 
-        # Estrategia 1: bloques JSON-LD tipo ItemList, que reflejan el orden real de la tapa
-        for bloque in re.findall(r'<script type="application/ld\+json"[^>]*>(.*?)</script>', html, re.DOTALL):
+        link = None
+        for seccion_url in ["https://www.infobae.com/ultimas-noticias/", "https://www.infobae.com/politica/"]:
             try:
-                data = json.loads(bloque.strip())
+                r = requests.get(seccion_url, headers=headers, timeout=8)
+                html = r.text
             except Exception:
                 continue
-            candidatos = data if isinstance(data, list) else [data]
-            for d in candidatos:
-                if isinstance(d, dict) and d.get("@type") == "ItemList":
-                    items = d.get("itemListElement", [])
-                    items_ordenados = sorted(items, key=lambda x: x.get("position", 999))
-                    for it in items_ordenados:
-                        url_it = it.get("url") or (it.get("item") or {}).get("url")
-                        if url_it and _es_nota_argentina(url_it):
-                            link = url_it
-                            break
-                if link:
+            for m in re.finditer(r'href="(https://www\.infobae\.com/[a-z0-9\-]+/\d{4}/\d{2}/\d{2}/[a-z0-9\-]+/)"', html):
+                if _es_nota_valida(m.group(1)):
+                    link = m.group(1)
                     break
             if link:
                 break
 
-        # Estrategia 2 (respaldo): primer link de nota que aparece en el HTML de la sección Argentina
-        if not link:
-            for m in re.finditer(r'href="(https://www\.infobae\.com/[a-z0-9\-]+/\d{4}/\d{2}/\d{2}/[a-z0-9\-]+/)"', html):
-                if _es_nota_argentina(m.group(1)):
-                    link = m.group(1)
-                    break
-
-        # Estrategia 3 (último respaldo): feed RSS general, filtrando por nota que hable de Argentina
+        # Último respaldo: feed RSS general, filtrando por nota válida
         if not link:
             feed = feedparser.parse("https://www.infobae.com/arc/outboundfeeds/rss/")
-            for entry in feed.entries[:15]:
-                if _es_nota_argentina(entry.link):
+            for entry in feed.entries[:20]:
+                if _es_nota_valida(entry.link):
                     link = entry.link
                     break
 
