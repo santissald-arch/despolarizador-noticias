@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import folium
 from streamlit_folium import st_folium
 from datetime import datetime, timedelta
@@ -9,13 +10,41 @@ import unicodedata
 import hashlib
 import json
 import urllib.parse
+import os
+import csv
 
 st.set_page_config(
-    page_title="Noticias de Argentina",
+    page_title="Noticias de Argentina | Dólar, Política, Economía y Deportes en vivo",
     page_icon="🇦🇷",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# ========== METADATOS SEO / OPEN GRAPH ==========
+# Nota: Streamlit renderiza del lado del cliente, así que esto ayuda a redes sociales
+# y a buscadores que ejecutan JS, pero no reemplaza un <head> estático servido por el
+# servidor. Para SEO más serio (sitemap.xml, robots.txt, meta por URL) conviene, más
+# adelante, un frontend estático o SSR delante de esta app.
+components.html("""
+<script>
+try {
+    const doc = window.parent.document;
+    doc.title = "Noticias de Argentina | Dólar, Política, Economía y Deportes en vivo";
+    const metas = [
+        {name: "description", content: "Noticias de Argentina en vivo: dólar blue y oficial, riesgo país, política, economía, tabla de la Liga Profesional AFA, clima y toda la actualidad del país, actualizada todo el día."},
+        {name: "keywords", content: "noticias argentina, dolar blue hoy, dolar oficial, riesgo pais, tabla afa, liga profesional, politica argentina, economia argentina"},
+        {property: "og:title", content: "Noticias de Argentina | Todo el país, en vivo"},
+        {property: "og:description", content: "Dólar, riesgo país, política, economía, deportes y clima de Argentina, actualizado en vivo."},
+        {property: "og:type", content: "website"},
+    ];
+    metas.forEach(m => {
+        const tag = doc.createElement('meta');
+        Object.keys(m).forEach(k => tag.setAttribute(k, m[k]));
+        doc.head.appendChild(tag);
+    });
+} catch (e) {}
+</script>
+""", height=0, width=0)
 
 # ========== ESTILO DIARIO CLARO ==========
 st.markdown("""
@@ -78,9 +107,14 @@ hr { border-color: #ddd !important; }
 .noticia-card {
     background: white;
     border: 1px solid #e5e2db;
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 16px;
     margin-bottom: 14px;
+    transition: box-shadow .15s ease, transform .15s ease;
+}
+.noticia-card:hover {
+    box-shadow: 0 6px 16px rgba(11,46,79,.10);
+    transform: translateY(-1px);
 }
 
 .logo-badge {
@@ -108,6 +142,42 @@ hr { border-color: #ddd !important; }
     justify-content: space-between;
     align-items: center;
 }
+
+/* Botón de compartir por WhatsApp: selector con más especificidad que "a" para que gane siempre */
+a.btn-whatsapp, a.btn-whatsapp * {
+    color: #ffffff !important;
+    text-decoration: none !important;
+}
+a.btn-whatsapp {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #22B858;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .2px;
+    margin-top: 8px;
+    box-shadow: 0 2px 5px rgba(34,184,88,.35);
+    transition: background .15s ease;
+}
+a.btn-whatsapp:hover { background: #1DA851; }
+
+/* Pestañas (tabs) más prolijas, para Zona A / Zona B, etc. */
+.stTabs [data-baseweb="tab-list"] { gap: 4px; }
+.stTabs [data-baseweb="tab"] {
+    background: #f0ede4;
+    border-radius: 6px 6px 0 0;
+    padding: 8px 18px;
+    font-weight: 600;
+    color: #555 !important;
+}
+.stTabs [aria-selected="true"] {
+    background: #0B2E4F !important;
+    color: #ffffff !important;
+}
+.stTabs [aria-selected="true"] p { color: #ffffff !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -214,9 +284,7 @@ def boton_whatsapp(titulo: str, link: str) -> str:
     texto = urllib.parse.quote(f"{titulo} {link}")
     url_wa = f"https://wa.me/?text={texto}"
     return (
-        f'<a href="{url_wa}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;'
-        f'background:#25D366;color:#fff!important;padding:4px 10px;border-radius:999px;'
-        f'font-size:11px;font-weight:700;text-decoration:none;margin-top:8px;">'
+        f'<a href="{url_wa}" target="_blank" class="btn-whatsapp">'
         f'<svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M17.6 6.3A8.9 8.9 0 0 0 3.6 17l-1.1 4 4.1-1.1A9 9 0 1 0 17.6 6.3zM12 19.5a7.4 7.4 0 0 1-3.8-1l-.3-.2-2.5.7.7-2.4-.2-.3a7.5 7.5 0 1 1 6.1 3.2zm4.1-5.6c-.2-.1-1.3-.6-1.5-.7-.2-.1-.4-.1-.5.1l-.7.9c-.1.2-.3.2-.5.1a6.1 6.1 0 0 1-3-2.6c-.2-.3.2-.3.5-.9.1-.1.1-.3 0-.4l-.7-1.6c-.2-.4-.4-.4-.5-.4h-.5c-.2 0-.4.1-.6.3-.2.2-.8.8-.8 2s.8 2.3 1 2.5c.1.1 1.7 2.6 4.1 3.6.6.2 1 .4 1.4.5.6.2 1.1.1 1.5.1.5-.1 1.3-.5 1.5-1 .2-.5.2-.9.1-1z"/></svg>'
         f'Compartir</a>'
     )
@@ -458,35 +526,26 @@ def obtener_riesgo_pais():
 # ========== INDICADORES ECONÓMICOS: TICKER ANIMADO (arriba del mapa) ==========
 st.subheader("Panorama económico")
 
-_PALETA_TICKER = ["#1B6E8C", "#B8860B", "#8B0000", "#2E7D32", "#6A4C93", "#C25E00"]
-
-def _pill_ticker(nombre: str, valor: str, en_dolares: bool, color: str) -> str:
-    sufijo = ' <span style="font-size:10px;font-weight:600;opacity:.85;">USD</span>' if en_dolares else ""
+def _item_ticker(nombre: str, valor: str, en_dolares: bool) -> str:
+    sufijo = ' <span style="font-size:10px;font-weight:600;color:#9aa5b1;">USD</span>' if en_dolares else ""
     return (
-        f'<span style="display:inline-flex;align-items:baseline;gap:6px;background:{color};'
-        f'color:#fff;padding:8px 18px;border-radius:999px;margin:0 8px;white-space:nowrap;'
-        f'font-family:Inter,sans-serif;box-shadow:0 2px 5px rgba(0,0,0,.15);">'
-        f'<span style="font-size:11px;font-weight:700;letter-spacing:.4px;opacity:.9;">{nombre.upper()}</span>'
-        f'<span style="font-size:16px;font-weight:800;">{valor}</span>{sufijo}</span>'
+        f'<span style="display:inline-flex;align-items:baseline;gap:7px;margin:0 26px;white-space:nowrap;'
+        f'font-family:Inter,sans-serif;">'
+        f'<span style="font-size:11px;font-weight:700;letter-spacing:.5px;color:#8fa6bd;">{nombre.upper()}</span>'
+        f'<span style="font-size:16px;font-weight:800;color:#ffffff;">{valor}</span>{sufijo}'
+        f'<span style="color:#3a5a78;margin-left:19px;">•</span></span>'
     )
 
 _items_ticker = []
-_i_color = 0
-
-def _next_color():
-    global _i_color
-    c = _PALETA_TICKER[_i_color % len(_PALETA_TICKER)]
-    _i_color += 1
-    return c
 
 blue = obtener_dolar("blue")
-_items_ticker.append(_pill_ticker("Dólar Blue", f'${blue["venta"]:.0f}' if blue else "sin datos", False, _next_color()))
+_items_ticker.append(_item_ticker("Dólar Blue", f'${blue["venta"]:.0f}' if blue else "sin datos", False))
 
 oficial = obtener_dolar("oficial")
-_items_ticker.append(_pill_ticker("Dólar Oficial", f'${oficial["venta"]:.0f}' if oficial else "sin datos", False, _next_color()))
+_items_ticker.append(_item_ticker("Dólar Oficial", f'${oficial["venta"]:.0f}' if oficial else "sin datos", False))
 
 riesgo = obtener_riesgo_pais()
-_items_ticker.append(_pill_ticker("Riesgo País", f'{riesgo:,.0f} pb' if riesgo is not None else "sin datos", False, _next_color()))
+_items_ticker.append(_item_ticker("Riesgo País", f'{riesgo:,.0f} pb' if riesgo is not None else "sin datos", False))
 
 COMMODITIES = [
     ("Petróleo WTI", "CL=F"),
@@ -504,15 +563,15 @@ for nombre, symbol in COMMODITIES:
     resultado = obtener_precio_yahoo(symbol)
     if resultado:
         precio, _cambio = resultado
-        _items_ticker.append(_pill_ticker(nombre, f'{precio:,.2f}', True, _next_color()))
+        _items_ticker.append(_item_ticker(nombre, f'{precio:,.2f}', True))
     else:
-        _items_ticker.append(_pill_ticker(nombre, "sin datos", False, _next_color()))
+        _items_ticker.append(_item_ticker(nombre, "sin datos", False))
 
 _pista = "".join(_items_ticker)
 st.markdown(f"""
-<div style="background:linear-gradient(90deg,#fffaf0,#fff);border:1px solid #e5e2db;border-radius:10px;
-            padding:12px 0;overflow:hidden;margin-bottom:6px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
-    <div style="display:inline-block;white-space:nowrap;animation:ticker-economico 38s linear infinite;">
+<div style="background:linear-gradient(120deg,#0B2E4F,#123A5E);border-radius:10px;
+            padding:14px 0;overflow:hidden;margin-bottom:6px;box-shadow:0 4px 12px rgba(11,46,79,.25);">
+    <div style="display:inline-block;white-space:nowrap;animation:ticker-economico 42s linear infinite;">
         {_pista}{_pista}
     </div>
 </div>
@@ -743,32 +802,6 @@ st.markdown(f"""
     Resumen orientativo: el estado de cada proyecto cambia con frecuencia. Para el detalle en tiempo real, consultá hcdn.gob.ar o senado.gob.ar.
 </div>
 """, unsafe_allow_html=True)
-
-# ========== ÚLTIMAS LEYES APROBADAS ==========
-LEYES_APROBADAS = [
-    ("Ley de Presupuesto 2026", "2025-12-18"),
-    ("Ley de Inocencia Fiscal", "2025-12-10"),
-    ("Prórroga del Consenso Fiscal", "2025-11-27"),
-    ("Ley de Boleta Única Papel (reglamentación)", "2025-11-05"),
-    ("Modificación del Régimen de Alquileres", "2025-10-22"),
-    ("Ley de Emergencia en Discapacidad (financiamiento)", "2025-09-30"),
-    ("Actualización del Régimen de Zonas Frías", "2025-09-11"),
-    ("Ley de Financiamiento Universitario", "2025-08-27"),
-    ("Modificaciones al Código Aduanero", "2025-08-14"),
-    ("Ley de Restauración de la Sostenibilidad de la Deuda Pública (ampliación)", "2025-07-30"),
-]
-
-st.subheader("Últimas leyes aprobadas")
-st.caption("Las 10 sanciones más recientes del Congreso. Nómina de referencia, editable a medida que se sancionan nuevas leyes; para el detalle oficial consultá hcdn.gob.ar o senado.gob.ar.")
-filas_leyes = ""
-for i, (nombre_ley, fecha_ley) in enumerate(LEYES_APROBADAS[:10], start=1):
-    filas_leyes += f"""
-    <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #eee;">
-        <span style="font-family:'Playfair Display',serif;font-weight:700;color:#B8860B;font-size:14px;min-width:20px;">{i:02d}</span>
-        <span style="font-size:13px;color:#111;flex:1;">{nombre_ley}</span>
-        <span style="font-size:11px;color:#888;">{fecha_ley}</span>
-    </div>"""
-st.markdown(f'<div style="background:white;border:1px solid #e5e2db;border-radius:6px;padding:8px 16px;margin-bottom:14px;">{filas_leyes}</div>', unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -1149,26 +1182,32 @@ else:
 
 st.markdown("---")
 
-# ========== TABLA DEL TORNEO AFA + NOTICIA DEL TORNEO ==========
-def _buscar_entries_tabla(obj):
-    """Busca recursivamente una lista de 'entries' de equipos dentro del JSON, sin asumir una estructura fija."""
+# ========== TABLA DEL TORNEO AFA (2 ZONAS) + NOTICIA DEL TORNEO ==========
+def _buscar_zonas_tabla(obj, nombre_actual=None, resultados=None):
+    """Recorre el JSON de ESPN y junta TODAS las listas de equipos que encuentra,
+    intentando arrastrar el nombre de zona/grupo más cercano (ej. 'Zona A')."""
+    if resultados is None:
+        resultados = []
     if isinstance(obj, dict):
         entries = obj.get("entries")
         if isinstance(entries, list) and entries and isinstance(entries[0], dict) and "team" in entries[0]:
-            return entries
-        for v in obj.values():
-            resultado = _buscar_entries_tabla(v)
-            if resultado:
-                return resultado
+            nombre_zona = nombre_actual or obj.get("name") or obj.get("displayName") or f"Zona {len(resultados) + 1}"
+            firma = tuple(e.get("team", {}).get("displayName") for e in entries)
+            if firma not in [r[2] for r in resultados]:
+                resultados.append((nombre_zona, entries, firma))
+            return resultados
+        nombre_aqui = obj.get("name") or obj.get("displayName") or obj.get("abbreviation") or nombre_actual
+        for k, v in obj.items():
+            if k == "entries":
+                continue
+            _buscar_zonas_tabla(v, nombre_aqui, resultados)
     elif isinstance(obj, list):
         for item in obj:
-            resultado = _buscar_entries_tabla(item)
-            if resultado:
-                return resultado
-    return None
+            _buscar_zonas_tabla(item, nombre_actual, resultados)
+    return resultados
 
 @st.cache_data(ttl=900)
-def obtener_tabla_afa():
+def obtener_zonas_afa():
     headers = {"User-Agent": "Mozilla/5.0 (compatible; NoticiasApp/1.0)"}
     urls = [
         "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings",
@@ -1181,24 +1220,33 @@ def obtener_tabla_afa():
             if r.status_code != 200:
                 continue
             data = r.json()
-            entries = _buscar_entries_tabla(data)
-            if not entries:
+            zonas_crudas = _buscar_zonas_tabla(data)
+            if not zonas_crudas:
                 continue
-            tabla = []
-            for e in entries:
-                equipo = e.get("team", {}).get("displayName") or e.get("team", {}).get("name") or "—"
-                stats = {s.get("name"): s.get("value") for s in e.get("stats", []) if isinstance(s, dict)}
-                tabla.append({
-                    "equipo": equipo,
-                    "pj": stats.get("gamesPlayed"),
-                    "pg": stats.get("wins"),
-                    "pe": stats.get("ties"),
-                    "pp": stats.get("losses"),
-                    "pts": stats.get("points"),
-                })
-            if tabla:
-                tabla.sort(key=lambda x: (x["pts"] if x["pts"] is not None else -1), reverse=True)
-                return tabla
+            zonas = []
+            for nombre_zona, entries, _firma in zonas_crudas:
+                tabla = []
+                for e in entries:
+                    team = e.get("team", {})
+                    equipo = team.get("displayName") or team.get("name") or "—"
+                    escudo = None
+                    logos = team.get("logos")
+                    if isinstance(logos, list) and logos:
+                        escudo = logos[0].get("href")
+                    elif team.get("logo"):
+                        escudo = team.get("logo")
+                    stats = {s.get("name"): s.get("value") for s in e.get("stats", []) if isinstance(s, dict)}
+                    tabla.append({
+                        "equipo": equipo, "escudo": escudo,
+                        "pj": stats.get("gamesPlayed"), "pg": stats.get("wins"),
+                        "pe": stats.get("ties"), "pp": stats.get("losses"),
+                        "pts": stats.get("points"),
+                    })
+                if tabla:
+                    tabla.sort(key=lambda x: (x["pts"] if x["pts"] is not None else -1), reverse=True)
+                    zonas.append((nombre_zona, tabla))
+            if zonas:
+                return zonas
         except Exception:
             continue
     return None
@@ -1219,37 +1267,50 @@ def obtener_noticia_torneo():
     except Exception:
         return None
 
-col_tabla, col_noticia_torneo = st.columns([1.5, 1])
+def _tabla_zona_html(equipos) -> str:
+    filas = ""
+    for i, eq in enumerate(equipos, start=1):
+        if eq.get("escudo"):
+            escudo_html = f'<img src="{eq["escudo"]}" style="width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:8px;">'
+        else:
+            escudo_html = '<span style="display:inline-block;width:20px;height:20px;margin-right:8px;"></span>'
+        fondo_fila = "#f7f9fb" if i % 2 == 0 else "#ffffff"
+        filas += f"""
+        <tr style="background:{fondo_fila};border-bottom:1px solid #edf0f3;">
+            <td style="padding:7px 6px;color:#8fa6bd;font-weight:700;">{i}</td>
+            <td style="padding:7px 6px;text-align:left;color:#111;font-weight:600;">{escudo_html}{eq['equipo']}</td>
+            <td style="padding:7px 6px;">{eq['pj'] if eq['pj'] is not None else '-'}</td>
+            <td style="padding:7px 6px;">{eq['pg'] if eq['pg'] is not None else '-'}</td>
+            <td style="padding:7px 6px;">{eq['pe'] if eq['pe'] is not None else '-'}</td>
+            <td style="padding:7px 6px;">{eq['pp'] if eq['pp'] is not None else '-'}</td>
+            <td style="padding:7px 6px;font-weight:800;color:#0B2E4F;">{eq['pts'] if eq['pts'] is not None else '-'}</td>
+        </tr>"""
+    return f"""
+    <div style="background:white;border:1px solid #e5e2db;border-radius:0 8px 8px 8px;padding:4px 12px 10px;overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;text-align:center;">
+    <thead><tr style="border-bottom:2px solid #0B2E4F;color:#0B2E4F;">
+        <th style="padding:8px 6px;">#</th><th style="padding:8px 6px;text-align:left;">Equipo</th>
+        <th style="padding:8px 6px;">PJ</th><th style="padding:8px 6px;">PG</th>
+        <th style="padding:8px 6px;">PE</th><th style="padding:8px 6px;">PP</th>
+        <th style="padding:8px 6px;">Pts</th>
+    </tr></thead>
+    <tbody>{filas}</tbody>
+    </table>
+    </div>"""
+
+col_tabla, col_noticia_torneo = st.columns([1.6, 1])
 
 with col_tabla:
     st.subheader("Tabla del torneo (AFA)")
-    tabla_afa = obtener_tabla_afa()
-    if tabla_afa:
-        filas_tabla = ""
-        for i, eq in enumerate(tabla_afa, start=1):
-            filas_tabla += f"""
-            <tr style="border-bottom:1px solid #eee;">
-                <td style="padding:5px 6px;color:#888;">{i}</td>
-                <td style="padding:5px 6px;text-align:left;color:#111;">{eq['equipo']}</td>
-                <td style="padding:5px 6px;">{eq['pj'] if eq['pj'] is not None else '-'}</td>
-                <td style="padding:5px 6px;">{eq['pg'] if eq['pg'] is not None else '-'}</td>
-                <td style="padding:5px 6px;">{eq['pe'] if eq['pe'] is not None else '-'}</td>
-                <td style="padding:5px 6px;">{eq['pp'] if eq['pp'] is not None else '-'}</td>
-                <td style="padding:5px 6px;font-weight:700;color:#111;">{eq['pts'] if eq['pts'] is not None else '-'}</td>
-            </tr>"""
-        st.markdown(f"""
-        <div style="background:white;border:1px solid #e5e2db;border-radius:6px;padding:10px 12px;overflow-x:auto;">
-        <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;">
-        <thead><tr style="border-bottom:2px solid #ddd;color:#666;">
-            <th style="padding:5px 6px;">#</th><th style="padding:5px 6px;text-align:left;">Equipo</th>
-            <th style="padding:5px 6px;">PJ</th><th style="padding:5px 6px;">PG</th>
-            <th style="padding:5px 6px;">PE</th><th style="padding:5px 6px;">PP</th>
-            <th style="padding:5px 6px;">Pts</th>
-        </tr></thead>
-        <tbody>{filas_tabla}</tbody>
-        </table>
-        </div>
-        """, unsafe_allow_html=True)
+    zonas_afa = obtener_zonas_afa()
+    if zonas_afa:
+        if len(zonas_afa) > 1:
+            tabs_zonas = st.tabs([nombre for nombre, _ in zonas_afa])
+            for tab, (_nombre, equipos) in zip(tabs_zonas, zonas_afa):
+                with tab:
+                    st.markdown(_tabla_zona_html(equipos), unsafe_allow_html=True)
+        else:
+            st.markdown(_tabla_zona_html(zonas_afa[0][1]), unsafe_allow_html=True)
     else:
         st.info("No se pudo cargar la tabla del torneo en este momento. Podés verla directamente en [ESPN](https://www.espn.com.ar/futbol/posiciones/_/liga/arg.1) o en [afa.com.ar](https://www.afa.com.ar).")
     st.caption("Fuente: ESPN. Para la tabla oficial, consultá afa.com.ar.")
@@ -1449,6 +1510,47 @@ if noticias:
             st.rerun()
 else:
     st.info("No se encontraron noticias con esos filtros.")
+
+st.markdown("---")
+
+# ========== NEWSLETTER (genera visitas recurrentes) ==========
+_ARCHIVO_SUSCRIPTORES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "suscriptores.csv")
+
+def guardar_suscriptor(email: str) -> bool:
+    try:
+        existe = os.path.isfile(_ARCHIVO_SUSCRIPTORES)
+        with open(_ARCHIVO_SUSCRIPTORES, "a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            if not existe:
+                writer.writerow(["email", "fecha"])
+            writer.writerow([email, datetime.now().isoformat(timespec="seconds")])
+        return True
+    except Exception:
+        return False
+
+st.markdown(f"""
+<div style="background:linear-gradient(120deg,#0B2E4F,#1B4F91);border-radius:12px;padding:26px 30px;
+            text-align:center;color:white;margin-bottom:8px;">
+    <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:800;margin-bottom:6px;">
+        Recibí el resumen del día en tu mail
+    </div>
+    <div style="font-size:13px;color:#cfe0f2;">
+        Dólar, riesgo país y las noticias más importantes de Argentina, todas las mañanas.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+col_news1, col_news2, col_news3 = st.columns([2, 1, 2])
+with col_news2:
+    email_suscripcion = st.text_input("Tu email", placeholder="tu@email.com", key="email_newsletter", label_visibility="collapsed")
+    if st.button("Suscribirme", use_container_width=True, key="btn_newsletter"):
+        if email_suscripcion and "@" in email_suscripcion and "." in email_suscripcion.split("@")[-1]:
+            if guardar_suscriptor(email_suscripcion):
+                st.success("¡Listo! Ya estás suscripto.")
+            else:
+                st.error("No se pudo guardar la suscripción, intentá de nuevo.")
+        else:
+            st.warning("Ingresá un email válido.")
 
 st.markdown("---")
 
